@@ -8,17 +8,8 @@
 <style>body{margin:0;padding:0;background:#f9f7f4}</style>
 </head>
 <body>
-<!-- ═══════════════════════════════════════════════════════════════
-     SHOPIFY EMBED: copy everything from the line below this comment
-     all the way to the matching END SHOPIFY EMBED comment.
-     Paste into Theme Editor → Customize → Add Section → Custom HTML
-     ═══════════════════════════════════════════════════════════════ -->
 <div class="wash-calc-outer">
 
-<!-- ═══════════════════════════════════════════════════════════════
-     SHOPIFY EMBED START — paste everything from here to END comment
-     into: Theme Editor → Customize → Add Section → Custom HTML
-     ═══════════════════════════════════════════════════════════════ -->
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Mono:wght@400;500;600&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
 .wash-calc-outer *,.wash-calc-outer *::before,.wash-calc-outer *::after{box-sizing:border-box}
@@ -109,4 +100,147 @@
 .wash-calc-outer .tips{grid-template-columns:1fr}
 .wash-calc-outer .tab{padding:11px 12px;font-size:.65rem}
 .wash-calc-outer .rh{gap:8px}
-.wash-calc-outer .r
+.wash-calc-outer .rh-icon{font-size:1.8rem}
+}
+</style>
+<div class="wash-calc-outer">
+
+<div class="tab-bar" role="tablist">
+  <button class="tab active" onclick="showTab('tpw',this)">Birdwatchers TPW</button>
+  <button class="tab" onclick="showTab('ffv',this)">Teddy's FFV</button
+                                                                    >
+  <button class="tab" onclick="showTab('ujssm',this)">UJSSM</button>
+  <span class="tab-divider">Advanced ↓</span>
+  <button class="tab tab-adv" onclick="showTab('corn',this)" title="Advanced all-grain recipe">Corn</button>
+  <button class="tab tab-adv" onclick="showTab('wheat',this)">Wheat</button>
+  <button class="tab tab-adv" onclick="showTab('rye',this)">Rye</button>
+  <button class="tab tab-adv" onclick="showTab('barley',this)">Barley</button>
+  <button class="tab tab-adv" onclick="showTab('oats',this)">Oats</button>
+  <button class="tab tab-adv" onclick="showTab('rice',this)">Rice</button>
+</div>
+
+<!-- BIRDWATCHERS TPW -->
+<div id="panel-tpw" class="panel active">
+  <div class="rh">
+    <div class="rh-icon"></div>
+    <div class="rh-text">
+      <div class="rh-name">Birdwatchers — Tomato Paste Wash</div>
+      <div class="rh-sub">The classic TPW sugar wash. Fast, cheap, reliable.</div>
+    </div>
+    <div class="rh-badge">Sugar Wash</div>
+  </div>
+  <div class="infobox">
+    The original <strong>Birdwatchers / TPW</strong> recipe from the Home Distiller forums. Tomato paste provides B-vitamins and minerals that drive a vigorous, clean ferment. Target SG <strong>1.060–1.090</strong> — most aim for <strong>1.070</strong>. Add sugar <em>slowly</em> — the quantity shown is the maximum you'll need to hit your SG. Original recipe at homedistiller.org.
+  </div>
+  <div class="controls">
+    <div class="field">
+      <label>Batch Size</label>
+      <input type="number" id="tpw-vol" value="23" min="1" max="1000" oninput="calcTPW()">
+    </div>
+    <div class="field">
+      <label>Units</label>
+      <div class="toggle-row">
+        <button class="tog on" id="tpw-L" onclick="setUnit('tpw','L')">Litres</button>
+        <button class="tog" id="tpw-G" onclick="setUnit('tpw','G')">US Gal</button>
+      </div>
+    </div>
+    <div class="field">
+      <label>Target SG</label>
+      <select id="tpw-sg" onchange="calcTPW()">
+        <option value="1.060">1.060 (~7% wash)</option>
+        <option value="1.070" selected>1.070 (~9% wash)</option>
+        <option value="1.080">1.080 (~10.5% wash)</option>
+        <option value="1.090">1.090 (~12% wash)</option>
+      </select>
+    </div>
+  </div>
+  <div class="sg-wrap">
+    <div class="sg-lbl"><span>SG Target</span><span id="tpw-sg-label">1.070</span></div>
+    <div class="sg-track"><div class="sg-fill" id="tpw-sg-fill" style="width:33%"></div></div>
+  </div>
+  <div class="results" id="tpw-results"></div>
+  <div class="sec-hd">Step-by-step Instructions</div>
+  <div class="steps" id="tpw-steps"></div>
+  <div class="sec-hd">Tips</div>
+  <div class="tips">
+    <div class="tip"><strong>Add sugar slowly</strong>Check SG after each addition. Stop when you hit your target — don't overshoot.</div>
+    <div class="tip"><strong>Temperature</strong>Keep at 26–30 °C (79–86 °F). A heater if needed helps maintain a consistent temperature.</div>
+    <div class="tip"><strong>Don't seal early</strong>Leave lid loose for 24–36 hrs. CO₂ production is intense and will blow a tight seal.</div>
+    <div class="tip"><strong>Clearing</strong>After ferment (SG ≈ 0.990), let it settle for several days before distilling for best results.</div>
+  </div>
+</div>
+
+<!-- TEDDY'S FFV -->
+<div id="panel-ffv" class="panel">
+  <div class="rh">
+    <div class="rh-icon"></div>
+    <div class="rh-text">
+      <div class="rh-name">Teddy's Fast Fermenting Vodka</div>
+      <div class="rh-sub">Community legend. Dry in 3–4 days. Slightly wheaty, very clean.</div>
+    </div>
+    <div class="rh-badge">FFV Sugar Wash</div>
+  </div>
+  <div class="infobox">
+    Wheat bran simmered for 30 min releases <strong>B-vitamins, minerals and sugars</strong> that give yeast a super-healthy environment. Moderate sugar load (SG 1.060–1.070) = unstressed yeast, clean ferment, rapid finish. <strong>Mk I</strong> = original; <strong>Mk II</strong> = bran + kibbled rye (Teddy's preferred); <strong>Mk III</strong> = double bran for more character. Consistently finishes in <strong>84–96 hours</strong>. Original recipe by <em>Teddysad</em> on homedistiller.org.
+  </div>
+  <div class="sec-hd">Choose Variant</div>
+  <div class="variant-row" id="ffv-variants">
+    <button class="vbtn on" onclick="setFFVVariant('mk1',this)">
+      <div class="vbtn-title">Mk I — Original</div>
+      <div class="vbtn-sub">250g bran/23L. Near-neutral vodka. Clean & bulletproof.</div>
+    </button>
+    <button class="vbtn" onclick="setFFVVariant('mk2',this)">
+      <div class="vbtn-title">Mk II — Bran + Rye</div>
+      <div class="vbtn-sub">200g bran + 100g kibbled rye/23L. Teddy's preferred. Light spicy bite.</div>
+    </button>
+    <button class="vbtn" onclick="setFFVVariant('mk3',this)">
+      <div class="vbtn-title">Mk III — Double Bran</div>
+      <div class="vbtn-sub">500g bran/23L. More flavour, great for oaking or pot still.</div>
+    </button>
+  </div>
+  <div class="controls">
+    <div class="field">
+      <label>Batch Size</label>
+      <input type="number" id="ffv-vol" value="23" min="1" max="1000" oninput="calcFFV()">
+    </div>
+    <div class="field">
+      <label>Units</label>
+      <div class="toggle-row">
+        <button class="tog on" id="ffv-L" onclick="setUnit('ffv','L')">Litres</button>
+        <button class="tog" id="ffv-G" onclick="setUnit('ffv','G')">US Gal</button>
+      </div>
+    </div>
+    <div class="field">
+      <label>Target SG</label>
+      <select id="ffv-sg" onchange="calcFFV()">
+        <option value="1.060" selected>1.060 (~7.5%)</option>
+        <option value="1.065">1.065 (~8.5%)</option>
+        <option value="1.070">1.070 (~9%)</option>
+        <option value="1.080">1.080 (~10.5%)</option>
+      </select>
+    </div>
+  </div>
+  <div class="sg-wrap">
+    <div class="sg-lbl"><span>SG Target</span><span id="ffv-sg-label">1.060</span></div>
+    <div class="sg-track"><div class="sg-fill" id="ffv-sg-fill" style="width:20%"></div></div>
+  </div>
+  <div class="results" id="ffv-results"></div>
+  <div class="sec-hd">Step-by-step Instructions</div>
+  <div class="steps" id="ffv-steps"></div>
+  <div class="sec-hd">Tips</div>
+  <div class="tips">
+    <div class="tip"><strong>Simmer the bran</strong>Don't skip this — simmering releases nutrients that power the fast ferment. 30 min, stirring occasionally.</div>
+    <div class="tip"><strong>Aerate vigorously</strong>Use a stick blender or energetic stirring. Oxygenation is key to the fast start.</div>
+    <div class="tip"><strong>Don't seal early</strong>Loose lid for at least 24 hrs. It takes off like a rocket and will blow a sealed airlock immediately.</div>
+    <div class="tip"><strong>pH to ~5</strong>Adjust with citric acid before pitching. This is a core part of what makes the ferment so fast and clean.</div>
+    <div class="tip"><strong>Ferment temp</strong>25–30 °C is ideal. Cooler = slower but still clean. Avoid exceeding 35 °C.</div>
+    <div class="tip"><strong>Oaking</strong>Mk II and Mk III take well to uncharred oak. Water down to ~65% ABV before adding dominoes.</div>
+  </div>
+</div>
+
+<!-- UJSSM -->
+<div id="panel-ujssm" class="panel">
+  <div class="rh">
+    <div class="rh-icon"></div>
+    <div class="rh-text">
+      <div class="rh-name">Uncle
