@@ -96,10 +96,20 @@
 .wash-calc-outer .mbtn-sub{font-size:.71rem;line-height:1.4}
 .wash-calc-outer .tip{background:#fff;border:1px solid #d8d2c6;border-radius:4px;padding:10px 12px;font-size:.79rem;color:#6b6455;line-height:1.55}
 .wash-calc-outer .tip strong{color:#1c1a17;display:block;margin-bottom:2px;font-size:.77rem}
-@media(max-width:480px){
-  .wash-calc-outer .panel{padding:16px}
-  .wash-calc-outer .rh-name{font-size:1.6rem}
-  .wash-calc-outer .rcard-val{font-size:1.1rem}
+@media(max-width:600px){
+.wash-calc-outer .panel{padding:14px}
+.wash-calc-outer .rh-name{font-size:1.5rem}
+.wash-calc-outer .rcard-val{font-size:1.1rem}
+.wash-calc-outer .results{grid-template-columns:repeat(2,1fr)}
+.wash-calc-outer .controls{grid-template-columns:1fr 1fr}
+.wash-calc-outer .variant-row{flex-direction:column}
+.wash-calc-outer .vbtn{min-width:unset}
+.wash-calc-outer .method-row{flex-direction:column}
+.wash-calc-outer .mbtn{min-width:unset}
+.wash-calc-outer .tips{grid-template-columns:1fr}
+.wash-calc-outer .tab{padding:11px 12px;font-size:.65rem}
+.wash-calc-outer .rh{gap:8px}
+.wash-calc-outer .rh-icon{font-size:1.8rem}
 }
 </style>
 <div class="wash-calc-outer">
@@ -726,6 +736,16 @@ calcTPW();
 calcFFV();
 calcUJSSM();
 ['corn','wheat','rye','barley','oats','rice'].forEach(id=>{buildGrainPanel(id);calcGrain(id);});
+
+// ── Auto-resize: send height to parent iframe ──────────────────────────────
+function sendHeight(){
+  const h = document.documentElement.scrollHeight;
+  window.parent.postMessage({type:'wash-calc-height',height:h},'*');
+}
+// Send on load, tab switch, and any DOM changes
+sendHeight();
+const ro = new ResizeObserver(sendHeight);
+ro.observe(document.body);
 </script>
 </div>
 <!-- ═══════════════════════════════════════════════════════ END SHOPIFY EMBED -->
