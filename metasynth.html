@@ -160,7 +160,10 @@ footer{margin-top:22px;color:var(--dim);font-size:.7rem;text-align:center}
 
       <div>
         <div class="card">
-          <h2>Spectrogram Canvas — x = time, y = pitch (log Hz)</h2>
+          <h2 style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+            <span>Spectrogram Canvas — x = time, y = pitch (log Hz)</span>
+            <button class="btn" id="touchModeBtn" style="text-transform:none;font-size:.62rem;padding:5px 9px"></button>
+          </h2>
           <div class="canvas-wrap">
             <div class="canvas-flex">
               <div class="freq-axis" id="freqAxis"></div>
@@ -407,7 +410,21 @@ function gridCoords(evt) {
 
 function clearOverlay() { octx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height); }
 
+// On touch devices, drawing needs touch-action:none to keep the browser from
+// hijacking a finger-drag as a page scroll. That also means a swipe over the
+// canvas can't scroll the page, so give touch users an explicit way out.
+let touchDrawEnabled = true;
+const touchModeBtn = document.getElementById('touchModeBtn');
+function updateTouchMode() {
+  gridCanvas.style.touchAction = touchDrawEnabled ? 'none' : 'pan-y';
+  touchModeBtn.textContent = touchDrawEnabled ? '✏ Draw mode (tap to allow scrolling)' : '✋ Scroll mode (tap to draw)';
+  touchModeBtn.classList.toggle('primary', !touchDrawEnabled);
+}
+touchModeBtn.addEventListener('click', () => { touchDrawEnabled = !touchDrawEnabled; updateTouchMode(); });
+updateTouchMode();
+
 gridCanvas.addEventListener('pointerdown', (e) => {
+  if (e.pointerType === 'touch' && !touchDrawEnabled) return;
   gridCanvas.setPointerCapture(e.pointerId);
   state.isDrawing = true;
   const [gx, gy] = gridCoords(e);
