@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VERSESYNTH — image to poem synthesizer</title>
+<style>
+  :root{
+    --bg:#12141a;
+    --panel:#1b1e27;
+    --panel-2:#232733;
+    --line:#333849;
+    --text:#e8e8ee;
+    --dim:#9498a8;
+    --accent:#7de0c8;
+    --accent2:#c99bff;
+    --warn:#ff9f6b;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:linear-gradient(160deg,#0f1116,#161a22 60%,#12141a);
+    color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    min-height:100vh;
+  }
+  header{
+    padding:22px 28px 14px;
+    border-bottom:1px solid var(--line);
+    display:flex;
+    align-items:baseline;
+    gap:14px;
+    flex-wrap:wrap;
+  }
+  header h1{
+    margin:0;
+    font-size:22px;
+    letter-spacing:0.14em;
+    font-weight:700;
+    background:linear-gradient(90deg,var(--accent),var(--accent2));
+    -webkit-background-clip:text;
+    background-clip:text;
+    color:transparent;
+  }
+  header p{
+    margin:0;
+    color:var(--dim);
+    font-size:13px;
+  }
+  main{
+    display:grid;
+    grid-template-columns:minmax(320px,420px) 1fr;
+    gap:18px;
+    padding:20px 28px 40px;
+  }
+  @media (max-width:900px){
+    main{grid-template-columns:1fr;}
+  }
+  .panel{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:16px;
+  }
+  .panel + .panel{margin-top:18px;}
+  .panel h2{
+    margin:0 0 12px;
+    font-size:12px;
+    letter-spacing:0.12em;
+    text-transform:uppercase;
+    color:var(--dim);
+  }
+  canvas#draw{
+    width:100%;
+    aspect-ratio:4/3;
+    background:#1a1c24;
+    border:1px solid var(--line);
+    border-radius:8px;
+    cursor:crosshair;
+    touch-action:none;
+    display:block;
+  }
+  .row{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    margin-top:10px;
+    flex-wrap:wrap;
+  }
+  .swatches{
+    display:grid;
+    grid-template-columns:repeat(6,1fr);
+    gap:6px;
+    margin-top:10px;
+  }
+  .swatch{
+    height:26px;
+    border-radius:5px;
+    border:2px solid transparent;
+    cursor:pointer;
+    position:relative;
+  }
+  .swatch.active{border-color:#fff;}
+  .swatch:hover::after{
+    content:attr(data-name);
+    position:absolute;
+    bottom:110%;
+    left:50%;
+    transform:translateX(-50%);
+    background:#000;
+    color:#fff;
+    font-size:10px;
+    padding:3px 6px;
+    border-radius:4px;
+    white-space:nowrap;
+    z-index:5;
+  }
+  button, select, input[type=file]{
+    background:var(--panel-2);
+    color:var(--text);
+    border:1px solid var(--line);
+    border-radius:6px;
+    padding:7px 11px;
+    font-size:12.5px;
+    cursor:pointer;
+  }
+  button:hover{border-color:var(--accent);}
+  button.primary{
+    background:linear-gradient(90deg,var(--accent),#5fb8a0);
+    color:#0c1310;
+    font-weight:700;
+    border:none;
+  }
+  button.primary:hover{filter:brightness(1.08);}
+  label.field{
+    display:flex;
+    flex-direction:column;
+    gap:4px;
+    font-size:11px;
+    color:var(--dim);
+    flex:1;
+    min-width:120px;
+  }
+  input[type=range]{width:100%;}
+  .legend{
+    font-size:12px;
+    color:var(--dim);
+    line-height:1.7;
+  }
+  .legend b{color:var(--text);}
+  #output-wrap{
+    min-height:520px;
+    display:flex;
+    flex-direction:column;
+  }
+  #poem-title{
+    font-family:Georgia,'Times New Roman',serif;
+    font-style:italic;
+    font-size:19px;
+    color:var(--accent2);
+    margin:0 0 4px;
+  }
+  #poem-sub{
+    font-size:11px;
+    color:var(--dim);
+    margin-bottom:16px;
+    letter-spacing:0.04em;
+  }
+  #poem{
+    font-family:Georgia,'Times New Roman',serif;
+    font-size:16px;
+    line-height:1.85;
+    white-space:pre-wrap;
+    flex:1;
+    color:#f1f1f6;
+  }
+  #poem .blank{display:block;height:0.6em;}
+  .grain-strip{
+    display:flex;
+    flex-wrap:wrap;
+    gap:2px;
+    margin-top:18px;
+    border-top:1px solid var(--line);
+    padding-top:14px;
+  }
+  .grain{
+    width:14px;
+    height:14px;
+    border-radius:2px;
+    cursor:default;
+  }
+  .toolbar{
+    display:flex;
+    gap:8px;
+    margin-top:14px;
+    flex-wrap:wrap;
+  }
+  .hint{font-size:11px;color:var(--dim);margin-top:6px;}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>VERSESYNTH</h1>
+  <p>a MetaSynth-style synthesizer — instead of turning pixels into sound, it turns them into verse</p>
+</header>
+
+<main>
+  <div>
+    <div class="panel">
+      <h2>Image / Canvas</h2>
+      <canvas id="draw" width="480" height="360"></canvas>
+      <div class="swatches" id="swatches"></div>
+      <div class="row">
+        <label class="field">Brush size
+          <input type="range" id="brushSize" min="4" max="60" value="18">
+        </label>
+        <label class="field">Custom hue
+          <input type="color" id="brushColor" value="#7de0c8">
+        </label>
+      </div>
+      <div class="toolbar">
+        <button id="clearBtn">Clear</button>
+        <button id="randomBtn">Random splotches</button>
+        <label style="display:flex;align-items:center;">
+          <input type="file" id="fileInput" accept="image/*" style="display:none;">
+          <button id="uploadBtn" type="button">Upload image</button>
+        </label>
+      </div>
+      <p class="hint">Paint with the palette below, or upload a photo. Each swatch is a lexicon, the same way MetaSynth's instrument colors map to waveforms.</p>
+    </div>
+
+    <div class="panel">
+      <h2>Synthesis parameters</h2>
+      <div class="row">
+        <label class="field">Mode
+          <select id="mode">
+            <option value="scan">Scan — raster read, left→right, top→bottom</option>
+            <option value="spectrum">Spectrum — columns become stanzas</option>
+            <option value="grain">Granular — shuffled fragments, cut-up</option>
+          </select>
+        </label>
+      </div>
+      <div class="row">
+        <label class="field">Resolution (grid)
+          <input type="range" id="resolution" min="4" max="16" value="9">
+        </label>
+        <label class="field">Density (imagery)
+          <input type="range" id="density" min="10" max="100" value="55">
+        </label>
+      </div>
+      <div class="row">
+        <label class="field">Register spread (vertical pull)
+          <input type="range" id="register" min="0" max="100" value="60">
+        </label>
+        <label class="field">Seed
+          <input type="number" id="seed" value="1" style="width:100%;">
+        </label>
+      </div>
+      <div class="toolbar">
+        <button class="primary" id="synthBtn">Synthesize</button>
+        <button id="rerollBtn">Reroll seed</button>
+        <button id="copyBtn">Copy poem</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>How the mapping works</h2>
+      <div class="legend">
+        <div><b>Hue</b> → lexicon / theme (12 word-families around the color wheel)</div>
+        <div><b>Horizontal position</b> → reading order (time)</div>
+        <div><b>Vertical position</b> → register: top = airy/light diction, bottom = grounded/heavy diction</div>
+        <div><b>Brightness</b> → tone: luminous vs. shadowed modifiers</div>
+        <div><b>Saturation</b> → vividness: likelihood of imagery-dense phrasing</div>
+        <div><b>Contrast between neighbors</b> → punctuation and line breaks</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel" id="output-wrap">
+    <h2>Output</h2>
+    <div id="poem-title">—</div>
+    <div id="poem-sub">paint or upload something, then hit Synthesize</div>
+    <div id="poem"></div>
+    <div class="grain-strip" id="grainStrip"></div>
+  </div>
+</main>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---------- lexicons ----------
+  // 12 hue buckets, 30deg wide, centered at 0,30,...330
+  const LEXICON = [
+    { name:"Ember",   nouns:["ember","wound","pulse","flame","blood","siren","rose","ash"],
+      adjectives:["burning","raw","fevered","molten","urgent","bruised"],
+      verbs:["burns","aches","flares","bleeds","screams"] },
+    { name:"Rust",    nouns:["rust","amber","harvest","kiln","marigold","fox","embers"],
+      adjectives:["warm","dusty","ripened","weathered","tawny"],
+      verbs:["glows","ripens","crackles","smolders"] },
+    { name:"Gold",    nouns:["sun","wheat","lantern","canary","gold","pollen","dawn"],
+      adjectives:["bright","gilded","brittle","giddy","warm"],
+      verbs:["gleams","hums","blazes","wakes"] },
+    { name:"Sprout",  nouns:["sprout","lime","meadow","spring","sap","seedling"],
+      adjectives:["tender","new","restless","sharp"],
+      verbs:["uncurls","stretches","quickens"] },
+    { name:"Fern",    nouns:["leaf","forest","fern","moss","ivy","field","root"],
+      adjectives:["quiet","deep","green","patient","wild"],
+      verbs:["grows","breathes","waits","spreads"] },
+    { name:"Willow",  nouns:["kelp","willow","shallows","reed","jade","marsh"],
+      adjectives:["cool","murmuring","slow","hidden"],
+      verbs:["sways","drifts","murmurs"] },
+    { name:"Glacier", nouns:["glacier","tide","mist","glass","frost","current"],
+      adjectives:["cold","clear","distant","glassy"],
+      verbs:["shivers","glimmers","recedes"] },
+    { name:"Azure",   nouns:["sky","horizon","gull","wind","altitude","cloud"],
+      adjectives:["vast","calm","open","endless"],
+      verbs:["drifts","soars","hovers","wanders"] },
+    { name:"Midnight",nouns:["ocean","midnight","sorrow","rain","depth","silence"],
+      adjectives:["deep","quiet","cold","aching","still"],
+      verbs:["sinks","weeps","echoes","waits"] },
+    { name:"Dusk",    nouns:["dusk","orchid","mystery","veil","twilight","incense"],
+      adjectives:["hushed","secret","dim","tender"],
+      verbs:["whispers","lingers","dissolves"] },
+    { name:"Neon",    nouns:["bloom","neon","pulse","orchard","static","wire"],
+      adjectives:["electric","wild","feverish","bright"],
+      verbs:["flickers","throbs","sings"] },
+    { name:"Rose",    nouns:["petal","blush","hush","ribbon","kiss","hem"],
+      adjectives:["soft","pale","gentle","fading"],
+      verbs:["fades","lingers","blushes","sighs"] }
+  ];
+  const LIGHT_ADJ = ["luminous","gleaming","radiant","pale","bright","translucent"];
+  const DARK_ADJ  = ["shadowed","hollow","buried","ashen","dim","unseen"];
+  const AIRY_VERBS = ["drifts","rises","hovers","floats","sings"];
+  const GROUNDED_VERBS = ["roots","sinks","settles","holds","waits"];
+  const CONNECTORS = [", ", " — ", " and ", "; "];
+  const FRAGMENT_JOIN = [" / ", " ... ", " — ", " / "];
+
+  const PALETTE_HEX = [
+    "#ff4d4d","#ff9f40","#ffd23f","#c6e86b",
+    "#4caf6b","#3ecfa0","#3fd0d0","#4aa8ff",
+    "#5b6bff","#a76bff","#e05bff","#ff6bb0"
+  ];
+
+  // ---------- RNG ----------
+  function mulberry32(a){
+    return function(){
+      a |= 0; a = a + 0x6D2B79F5 | 0;
+      let t = Math.imul(a ^ a >>> 15, 1 | a);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  }
+  function pick(arr, rng){ return arr[Math.floor(rng()*arr.length)]; }
+  function shuffle(arr, rng){
+    const a = arr.slice();
+    for(let i=a.length-1;i>0;i--){
+      const j = Math.floor(rng()*(i+1));
+      [a[i],a[j]] = [a[j],a[i]];
+    }
+    return a;
+  }
+  function capFirst(s){ return s.charAt(0).toUpperCase()+s.slice(1); }
+
+  function rgbToHsl(r,g,b){
+    r/=255; g/=255; b/=255;
+    const max=Math.max(r,g,b), min=Math.min(r,g,b);
+    let h=0, s=0; const l=(max+min)/2;
+    if(max!==min){
+      const d=max-min;
+      s = l>0.5 ? d/(2-max-min) : d/(max+min);
+      switch(max){
+        case r: h=(g-b)/d + (g<b?6:0); break;
+        case g: h=(b-r)/d + 2; break;
+        case b: h=(r-g)/d + 4; break;
+      }
+      h*=60;
+    }
+    return {h,s,l};
+  }
+  function hueBucket(h){
+    return Math.floor(((h+15)%360)/30) % 12;
+  }
+  function hueDiff(a,b){
+    const d = Math.abs(a-b) % 360;
+    return d > 180 ? 360-d : d;
+  }
+
+  // ---------- canvas / drawing ----------
+  const drawCanvas = document.getElementById('draw');
+  const dctx = drawCanvas.getContext('2d', {willReadFrequently:true});
+  function fitCanvasPixels(){
+    const rect = drawCanvas.getBoundingClientRect();
+    drawCanvas.width = Math.max(320, Math.round(rect.width));
+    drawCanvas.height = Math.max(240, Math.round(rect.height));
+  }
+  function clearCanvas(){
+    dctx.fillStyle = "#1a1c24";
+    dctx.fillRect(0,0,drawCanvas.width,drawCanvas.height);
+  }
+  window.addEventListener('resize', ()=>{ /* keep existing content simple: no reflow of art */ });
+
+  let brushColor = "#7de0c8";
+  let brushSize = 18;
+  let drawing = false;
+  let lastPt = null;
+
+  function canvasPoint(e){
+    const rect = drawCanvas.getBoundingClientRect();
+    const cx = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
+    const cy = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
+    return { x: cx * (drawCanvas.width/rect.width), y: cy * (drawCanvas.height/rect.height) };
+  }
+  function strokeTo(pt){
+    dctx.strokeStyle = brushColor;
+    dctx.lineWidth = brushSize;
+    dctx.lineCap = "round";
+    dctx.lineJoin = "round";
+    dctx.beginPath();
+    if(lastPt){ dctx.moveTo(lastPt.x, lastPt.y); } else { dctx.moveTo(pt.x-0.1, pt.y-0.1); }
+    dctx.lineTo(pt.x, pt.y);
+    dctx.stroke();
+    lastPt = pt;
+  }
+  function startDraw(e){ drawing = true; lastPt=null; strokeTo(canvasPoint(e)); e.preventDefault(); }
+  function moveDraw(e){ if(!drawing) return; strokeTo(canvasPoint(e)); e.preventDefault(); }
+  function endDraw(){ drawing=false; lastPt=null; }
+  drawCanvas.addEventListener('mousedown', startDraw);
+  drawCanvas.addEventListener('mousemove', moveDraw);
+  window.addEventListener('mouseup', endDraw);
+  drawCanvas.addEventListener('touchstart', startDraw, {passive:false});
+  drawCanvas.addEventListener('touchmove', moveDraw, {passive:false});
+  drawCanvas.addEventListener('touchend', endDraw);
+
+  // swatches
+  const swatchWrap = document.getElementById('swatches');
+  PALETTE_HEX.forEach((hex, i)=>{
+    const el = document.createElement('div');
+    el.className = 'swatch';
+    el.style.background = hex;
+    el.dataset.name = LEXICON[i].name;
+    el.addEventListener('click', ()=>{
+      document.querySelectorAll('.swatch').forEach(s=>s.classList.remove('active'));
+      el.classList.add('active');
+      brushColor = hex;
+      document.getElementById('brushColor').value = hex;
+    });
+    swatchWrap.appendChild(el);
+  });
+
+  document.getElementById('brushSize').addEventListener('input', e=>{ brushSize = +e.target.value; });
+  document.getElementById('brushColor').addEventListener('input', e=>{
+    brushColor = e.target.value;
+    document.querySelectorAll('.swatch').forEach(s=>s.classList.remove('active'));
+  });
+  document.getElementById('clearBtn').addEventListener('click', ()=>{ clearCanvas(); });
+  document.getElementById('randomBtn').addEventListener('click', ()=>{
+    clearCanvas();
+    const rng = mulberry32(Date.now() & 0xffffffff);
+    for(let i=0;i<28;i++){
+      const hex = pick(PALETTE_HEX, rng);
+      const x = rng()*drawCanvas.width, y = rng()*drawCanvas.height;
+      const r = 20 + rng()*90;
+      const grad = dctx.createRadialGradient(x,y,0,x,y,r);
+      grad.addColorStop(0, hex);
+      grad.addColorStop(1, "rgba(0,0,0,0)");
+      dctx.fillStyle = grad;
+      dctx.beginPath();
+      dctx.arc(x,y,r,0,Math.PI*2);
+      dctx.fill();
+    }
+  });
+  document.getElementById('uploadBtn').addEventListener('click', ()=>{
+    document.getElementById('fileInput').click();
+  });
+  document.getElementById('fileInput').addEventListener('change', e=>{
+    const file = e.target.files[0];
+    if(!file) return;
+    const img = new Image();
+    img.onload = ()=>{
+      clearCanvas();
+      const scale = Math.max(drawCanvas.width/img.width, drawCanvas.height/img.height);
+      const w = img.width*scale, h = img.height*scale;
+      const x = (drawCanvas.width-w)/2, y = (drawCanvas.height-h)/2;
+      dctx.drawImage(img, x, y, w, h);
+      URL.revokeObjectURL(img.src);
+    };
+    img.src = URL.createObjectURL(file);
+  });
+
+  // init canvas
+  fitCanvasPixels();
+  clearCanvas();
+
+  // ---------- sampling ----------
+  function sampleGrains(cols, rows){
+    const imgData = dctx.getImageData(0,0,drawCanvas.width,drawCanvas.height).data;
+    const cellW = drawCanvas.width/cols, cellH = drawCanvas.height/rows;
+    const grid = [];
+    for(let r=0;r<rows;r++){
+      const row = [];
+      for(let c=0;c<cols;c++){
+        let rs=0,gs=0,bs=0,n=0;
+        const x0 = Math.floor(c*cellW), x1 = Math.floor((c+1)*cellW);
+        const y0 = Math.floor(r*cellH), y1 = Math.floor((r+1)*cellH);
+        for(let y=y0;y<y1;y+=2){
+          for(let x=x0;x<x1;x+=2){
+            const idx = (y*drawCanvas.width + x)*4;
+            rs += imgData[idx]; gs += imgData[idx+1]; bs += imgData[idx+2];
+            n++;
+          }
+        }
+        n = Math.max(n,1);
+        const rr = rs/n, gg = gs/n, bb = bs/n;
+        const hsl = rgbToHsl(rr,gg,bb);
+        row.push({ h:hsl.h, s:hsl.s, l:hsl.l, r:rr, g:gg, b:bb });
+      }
+      grid.push(row);
+    }
+    return grid;
+  }
+
+  // ---------- phrase construction ----------
+  function buildPhrase(grain, rowIndex, totalRows, rng, params){
+    const lex = LEXICON[hueBucket(grain.h)];
+    const noun = pick(lex.nouns, rng);
+    let adj = null;
+    const adjChance = params.density * (0.35 + grain.s*0.65);
+    if(rng() < adjChance){
+      if(grain.l > 0.68) adj = pick(lex.adjectives.concat(LIGHT_ADJ), rng);
+      else if(grain.l < 0.32) adj = pick(lex.adjectives.concat(DARK_ADJ), rng);
+      else adj = pick(lex.adjectives, rng);
+    }
+    let verb = null;
+    const vertical = totalRows>1 ? rowIndex/(totalRows-1) : 0.5;
+    const registerPull = Math.abs(vertical-0.5)*2 * params.register;
+    if(rng() < 0.25 + registerPull*0.5){
+      if(vertical < 0.4) verb = pick(AIRY_VERBS, rng);
+      else if(vertical > 0.6) verb = pick(GROUNDED_VERBS, rng);
+      else verb = pick(lex.verbs, rng);
+    }
+    let out = "";
+    if(adj) out += adj + " ";
+    out += noun;
+    if(verb) out += " " + verb;
+    return out;
+  }
+
+  function buildPhraseGrid(grains, rng, params){
+    const rows = grains.length, cols = grains[0].length;
+    const grid = [];
+    for(let r=0;r<rows;r++){
+      const row = [];
+      for(let c=0;c<cols;c++){
+        row.push(buildPhrase(grains[r][c], r, rows, rng, params));
+      }
+      grid.push(row);
+    }
+    return grid;
+  }
+
+  // ---------- assembly modes ----------
+  function assembleScan(grains, phrases, rng){
+    const lines = [];
+    const rows = grains.length;
+    for(let r=0;r<rows;r++){
+      let line = "";
+      for(let c=0;c<grains[r].length;c++){
+        line += phrases[r][c];
+        if(c < grains[r].length-1){
+          const diff = hueDiff(grains[r][c].h, grains[r][c+1].h);
+          const conn = diff > 70 ? " — " : diff > 30 ? pick(CONNECTORS, rng) : " ";
+          line += conn;
+        }
+      }
+      lines.push(capFirst(line));
+      if(rows>5 && (r+1) % Math.ceil(rows/4) === 0 && r !== rows-1) lines.push("");
+    }
+    return lines;
+  }
+
+  function assembleSpectrum(grains, phrases, rng){
+    const lines = [];
+    const rows = grains.length, cols = grains[0].length;
+    for(let c=0;c<cols;c++){
+      for(let r=0;r<rows;r++){
+        lines.push(capFirst(phrases[r][c]));
+      }
+      if(c !== cols-1) lines.push("");
+    }
+    return lines;
+  }
+
+  function assembleGrain(grains, phrases, rng){
+    const rows = grains.length, cols = grains[0].length;
+    const flat = [];
+    for(let r=0;r<rows;r++) for(let c=0;c<cols;c++) flat.push(phrases[r][c]);
+    const shuffled = shuffle(flat, rng);
+    const lines = [];
+    let i = 0;
+    let sinceBreak = 0;
+    while(i < shuffled.length){
+      const n = 2 + Math.floor(rng()*3);
+      const chunk = shuffled.slice(i, i+n);
+      i += n;
+      lines.push(capFirst(chunk.join(pick(FRAGMENT_JOIN, rng))));
+      sinceBreak++;
+      if(sinceBreak >= 3){ lines.push(""); sinceBreak = 0; }
+    }
+    return lines;
+  }
+
+  function brightnessWord(avgL){
+    if(avgL > 0.7) return "Bright";
+    if(avgL > 0.5) return "Clear";
+    if(avgL > 0.32) return "Dim";
+    return "Shadow";
+  }
+
+  function buildTitle(grains, mode, rng){
+    const counts = {};
+    let sumL = 0, n = 0;
+    grains.forEach(row => row.forEach(g=>{
+      const b = hueBucket(g.h);
+      counts[b] = (counts[b]||0) + 1;
+      sumL += g.l; n++;
+    }));
+    let dominant = 0, best = -1;
+    Object.keys(counts).forEach(k=>{ if(counts[k]>best){ best=counts[k]; dominant=+k; } });
+    const avgL = n ? sumL/n : 0.5;
+    const modeLabel = mode === "scan" ? "Scan" : mode === "spectrum" ? "Spectrum" : "Grain";
+    return `${LEXICON[dominant].name}, ${brightnessWord(avgL)} (${modeLabel})`;
+  }
+
+  // ---------- main synth ----------
+  function synthesize(){
+    const mode = document.getElementById('mode').value;
+    const resolution = +document.getElementById('resolution').value;
+    const density = +document.getElementById('density').value / 100;
+    const register = +document.getElementById('register').value / 100;
+    const seed = +document.getElementById('seed').value || 1;
+
+    const cols = resolution;
+    const rows = Math.max(4, Math.round(resolution * (drawCanvas.height/drawCanvas.width)));
+    const rng = mulberry32(seed * 2654435761 >>> 0);
+    const params = { density, register };
+
+    const grains = sampleGrains(cols, rows);
+    const phrases = buildPhraseGrid(grains, rng, params);
+
+    let lines;
+    if(mode === "scan") lines = assembleScan(grains, phrases, rng);
+    else if(mode === "spectrum") lines = assembleSpectrum(grains, phrases, rng);
+    else lines = assembleGrain(grains, phrases, rng);
+
+    const title = buildTitle(grains, mode, rng);
+
+    document.getElementById('poem-title').textContent = title;
+    document.getElementById('poem-sub').textContent =
+      `${cols}×${rows} grains · mode: ${mode} · seed ${seed}`;
+
+    const poemEl = document.getElementById('poem');
+    poemEl.innerHTML = "";
+    lines.forEach(line=>{
+      if(line === ""){
+        const br = document.createElement('span');
+        br.className = 'blank';
+        poemEl.appendChild(br);
+      } else {
+        const span = document.createElement('div');
+        span.textContent = line;
+        poemEl.appendChild(span);
+      }
+    });
+
+    const strip = document.getElementById('grainStrip');
+    strip.innerHTML = "";
+    grains.forEach((row, r)=>{
+      row.forEach((g, c)=>{
+        const d = document.createElement('div');
+        d.className = 'grain';
+        d.style.background = `rgb(${g.r|0},${g.g|0},${g.b|0})`;
+        d.title = phrases[r][c];
+        strip.appendChild(d);
+      });
+    });
+  }
+
+  document.getElementById('synthBtn').addEventListener('click', synthesize);
+  document.getElementById('rerollBtn').addEventListener('click', ()=>{
+    document.getElementById('seed').value = Math.floor(Math.random()*100000);
+    synthesize();
+  });
+  document.getElementById('copyBtn').addEventListener('click', ()=>{
+    const text = Array.from(document.getElementById('poem').children)
+      .map(el => el.className === 'blank' ? "" : el.textContent)
+      .join("\n");
+    navigator.clipboard && navigator.clipboard.writeText(text).catch(()=>{});
+  });
+
+  // seed default canvas with something interesting on load
+  (function seedDefault(){
+    const rng = mulberry32(42);
+    for(let i=0;i<20;i++){
+      const hex = pick(PALETTE_HEX, rng);
+      const x = rng()*drawCanvas.width, y = rng()*drawCanvas.height;
+      const r = 25 + rng()*100;
+      const grad = dctx.createRadialGradient(x,y,0,x,y,r);
+      grad.addColorStop(0, hex);
+      grad.addColorStop(1, "rgba(0,0,0,0)");
+      dctx.fillStyle = grad;
+      dctx.beginPath();
+      dctx.arc(x,y,r,0,Math.PI*2);
+      dctx.fill();
+    }
+    synthesize();
+  })();
+
+})();
+</script>
+</body>
+</html>
