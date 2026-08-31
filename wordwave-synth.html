@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WORDWAVE — poem to synthesis</title>
+<style>
+  :root{
+    --bg:#12141a;
+    --panel:#1b1e27;
+    --panel-2:#232733;
+    --line:#333849;
+    --text:#e8e8ee;
+    --dim:#9498a8;
+    --accent:#7de0c8;
+    --accent2:#c99bff;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:linear-gradient(160deg,#0f1116,#161a22 60%,#12141a);
+    color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    min-height:100vh;
+  }
+  header{
+    padding:22px 28px 14px;
+    border-bottom:1px solid var(--line);
+    display:flex;
+    align-items:baseline;
+    gap:14px;
+    flex-wrap:wrap;
+  }
+  header h1{
+    margin:0;
+    font-size:22px;
+    letter-spacing:0.14em;
+    font-weight:700;
+    background:linear-gradient(90deg,var(--accent2),var(--accent));
+    -webkit-background-clip:text;
+    background-clip:text;
+    color:transparent;
+  }
+  header p{ margin:0; color:var(--dim); font-size:13px; }
+  main{
+    display:grid;
+    grid-template-columns:minmax(320px,420px) 1fr;
+    gap:18px;
+    padding:20px 28px 40px;
+  }
+  @media (max-width:900px){ main{grid-template-columns:1fr;} }
+  .panel{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:16px;
+  }
+  .panel + .panel{margin-top:18px;}
+  .panel h2{
+    margin:0 0 12px;
+    font-size:12px;
+    letter-spacing:0.12em;
+    text-transform:uppercase;
+    color:var(--dim);
+  }
+  textarea{
+    width:100%;
+    min-height:180px;
+    resize:vertical;
+    background:#1a1c24;
+    color:var(--text);
+    border:1px solid var(--line);
+    border-radius:8px;
+    padding:10px;
+    font-family:Georgia,'Times New Roman',serif;
+    font-size:14px;
+    line-height:1.6;
+  }
+  .row{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    margin-top:10px;
+    flex-wrap:wrap;
+  }
+  button, select{
+    background:var(--panel-2);
+    color:var(--text);
+    border:1px solid var(--line);
+    border-radius:6px;
+    padding:7px 11px;
+    font-size:12.5px;
+    cursor:pointer;
+  }
+  button:hover{border-color:var(--accent);}
+  button:disabled{opacity:0.45; cursor:not-allowed;}
+  button.primary{
+    background:linear-gradient(90deg,var(--accent2),#9a6fe0);
+    color:#100c1a;
+    font-weight:700;
+    border:none;
+  }
+  button.primary:hover{filter:brightness(1.08);}
+  label.field{
+    display:flex;
+    flex-direction:column;
+    gap:4px;
+    font-size:11px;
+    color:var(--dim);
+    flex:1;
+    min-width:120px;
+  }
+  input[type=range], input[type=number]{width:100%;}
+  input[type=number]{
+    background:var(--panel-2);
+    color:var(--text);
+    border:1px solid var(--line);
+    border-radius:6px;
+    padding:6px 8px;
+  }
+  .legend{
+    font-size:12px;
+    color:var(--dim);
+    line-height:1.7;
+  }
+  .legend b{color:var(--text);}
+  #vizWrap{
+    min-height:300px;
+    display:flex;
+    flex-direction:column;
+  }
+  canvas#viz{
+    width:100%;
+    height:260px;
+    background:#0e1016;
+    border:1px solid var(--line);
+    border-radius:8px;
+    display:block;
+  }
+  #stats{
+    font-size:11px;
+    color:var(--dim);
+    margin-top:10px;
+    letter-spacing:0.03em;
+  }
+  .toolbar{
+    display:flex;
+    gap:8px;
+    margin-top:14px;
+    flex-wrap:wrap;
+    align-items:center;
+  }
+  a#downloadLink{
+    font-size:12px;
+    color:var(--accent);
+    text-decoration:none;
+    border:1px solid var(--line);
+    border-radius:6px;
+    padding:7px 11px;
+  }
+  a#downloadLink:hover{border-color:var(--accent);}
+  .hint{font-size:11px;color:var(--dim);margin-top:6px;}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>WORDWAVE</h1>
+  <p>the inverse of VerseSynth — instead of turning pixels into a poem, this turns a poem into sound (and a picture of that sound)</p>
+</header>
+
+<main>
+  <div>
+    <div class="panel">
+      <h2>Poem</h2>
+      <textarea id="poemInput" spellcheck="false"></textarea>
+      <div class="toolbar">
+        <button id="sample1Btn">Load sample I</button>
+        <button id="sample2Btn">Load sample II</button>
+        <button id="clearBtn">Clear</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Synthesis parameters</h2>
+      <div class="row">
+        <label class="field">Mode
+          <select id="mode">
+            <option value="scan">Scan — sequential read, one voice</option>
+            <option value="spectrum">Spectrum — each line as a chord</option>
+            <option value="grain">Granular — shuffled overlapping grains</option>
+          </select>
+        </label>
+      </div>
+      <div class="row">
+        <label class="field">Tempo
+          <input type="range" id="tempo" min="1" max="10" value="4" step="0.5">
+        </label>
+        <label class="field">Register drift
+          <input type="range" id="register" min="0" max="100" value="55">
+        </label>
+      </div>
+      <div class="row">
+        <label class="field">Brightness (filter)
+          <input type="range" id="brightness" min="0" max="100" value="55">
+        </label>
+        <label class="field">Density / grain
+          <input type="range" id="density" min="0" max="100" value="50">
+        </label>
+      </div>
+      <div class="row">
+        <label class="field">Seed
+          <input type="number" id="seed" value="1">
+        </label>
+      </div>
+      <div class="toolbar">
+        <button class="primary" id="playBtn">▶ Synthesize &amp; play</button>
+        <button id="stopBtn">■ Stop</button>
+        <button id="recordBtn">● Record</button>
+        <a id="downloadLink" hidden download="wordwave.webm">Download recording</a>
+      </div>
+      <p class="hint" id="audioHint"></p>
+    </div>
+
+    <div class="panel">
+      <h2>How the mapping works</h2>
+      <div class="legend">
+        <div><b>Word length</b> → pitch: short words ring high, long words sit low</div>
+        <div><b>Letter sum (hash)</b> → timbre family / color, same 12-bucket wheel as VerseSynth</div>
+        <div><b>Vowel density</b> → filter brightness: open vowels sound brighter, consonants darker</div>
+        <div><b>Line position</b> → register drift across the poem (top brighter, bottom lower)</div>
+        <div><b>Word position in line</b> → stereo pan, left→right as it's read</div>
+        <div><b>Punctuation</b> → rhythm: commas breathe, periods rest, "!" accents, "?" bends pitch up</div>
+        <div><b>Capitalized words</b> → a short percussive accent</div>
+        <div><b>Rhyming line-endings</b> → echo / delay</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel" id="vizWrap">
+    <h2>Output</h2>
+    <canvas id="viz" width="900" height="260"></canvas>
+    <div id="stats">load or write a poem, then press Synthesize &amp; play</div>
+  </div>
+</main>
+
+<script>
+(function(){
+  "use strict";
+
+  const PALETTE_HEX = [
+    "#ff4d4d","#ff9f40","#ffd23f","#c6e86b",
+    "#4caf6b","#3ecfa0","#3fd0d0","#4aa8ff",
+    "#5b6bff","#a76bff","#e05bff","#ff6bb0"
+  ];
+  const WAVEFORMS = ["sine","triangle","sawtooth","square"];
+
+  const SAMPLE_1 =
+`Salt light on the water, quiet
+and the gulls turning slow above the pier.
+A child counts the waves and loses count.
+Evening comes, ordinary and immense.`;
+
+  const SAMPLE_2 =
+`The engine hums under a low red sky.
+Steel remembers heat long after the hand lets go.
+Somewhere a door closes, somewhere a door opens,
+and the whole city leans toward morning.`;
+
+  document.getElementById('poemInput').value = SAMPLE_1;
+  document.getElementById('sample1Btn').addEventListener('click', ()=>{ document.getElementById('poemInput').value = SAMPLE_1; });
+  document.getElementById('sample2Btn').addEventListener('click', ()=>{ document.getElementById('poemInput').value = SAMPLE_2; });
+  document.getElementById('clearBtn').addEventListener('click', ()=>{ document.getElementById('poemInput').value = ""; });
+
+  // ---------- RNG ----------
+  function mulberry32(a){
+    return function(){
+      a |= 0; a = a + 0x6D2B79F5 | 0;
+      let t = Math.imul(a ^ a >>> 15, 1 | a);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  }
+  function clamp(v,lo,hi){ return Math.max(lo,Math.min(hi,v)); }
+  function mapRange(v,a1,b1,a2,b2){
+    const t = b1===a1 ? 0 : (v-a1)/(b1-a1);
+    return a2 + t*(b2-a2);
+  }
+
+  // ---------- tokenizing ----------
+  function tokenizeLine(line){
+    const raw = line.trim().split(/\s+/).filter(Boolean);
+    return raw.map(tok=>{
+      const m = tok.match(/^([A-Za-z''’-]+)([.,;:!?—-]*)$/);
+      const core = m ? m[1] : tok.replace(/[^A-Za-z''’-]/g,'');
+      const punct = m ? m[2] : '';
+      const letters = core.replace(/[^A-Za-z]/g,'');
+      return {
+        text: tok,
+        core: core || '?',
+        letters: letters || 'x',
+        punct: punct,
+        isCapitalized: /^[A-Z]/.test(core) && core.length>1
+      };
+    }).filter(t=>t.letters.length>0);
+  }
+  function tokenizePoem(text){
+    return text.split(/\n/).map(l=>l.trim()).filter(l=>l.length>0).map(tokenizeLine).filter(l=>l.length>0);
+  }
+
+  function vowelRatio(letters){
+    const v = (letters.match(/[aeiouAEIOU]/g)||[]).length;
+    return v / letters.length;
+  }
+  function hueBucketOf(letters){
+    let sum = 0;
+    for(let i=0;i<letters.length;i++) sum += letters.charCodeAt(i);
+    return sum % 12;
+  }
+  function rhymeKey(letters){
+    return letters.toLowerCase().slice(-3);
+  }
+  function gapFor(punct){
+    if(punct.includes('—')) return 1.3;
+    if(punct.includes('.')) return 1.2;
+    if(punct.includes('!')) return 0.9;
+    if(punct.includes('?')) return 1.0;
+    if(punct.includes(';') || punct.includes(':')) return 0.6;
+    if(punct.includes(',')) return 0.5;
+    if(punct.includes('-')) return 0.3;
+    return 0.15;
+  }
+
+  // ---------- event list construction ----------
+  function pitchSemitone(letters, lineNorm, params, rng){
+    const len = clamp(letters.length,1,12);
+    const shortHigh = mapRange(len,1,12,14,-10);
+    const drift = mapRange(lineNorm,0,1, params.register*12, -params.register*12);
+    const jitter = (rng()-0.5)*2;
+    return shortHigh + drift + jitter;
+  }
+  function freqFromSemi(semi){ return 220 * Math.pow(2, semi/12); }
+
+  function buildEventList(lines, mode, rng, params){
+    const events = [];
+    const numLines = lines.length;
+    const baseDur = 1/params.tempo;
+    const endWordKeys = []; // for rhyme detection, in line order
+
+    if(mode === "scan" || mode === "spectrum"){
+      let cursor = 0;
+      lines.forEach((line, li)=>{
+        const lineNorm = numLines>1 ? li/(numLines-1) : 0.5;
+        const lineLen = line.length;
+        const lineDuration = mode === "spectrum" ? baseDur*1.7 : null;
+        const lineStart = cursor;
+
+        line.forEach((tok, wi)=>{
+          const vr = vowelRatio(tok.letters);
+          const hue = hueBucketOf(tok.letters);
+          const semi = pitchSemitone(tok.letters, lineNorm, params, rng);
+          const freq = freqFromSemi(semi);
+          const filterHz = clamp(mapRange(vr,0,1,500,5200) * (0.4+params.brightness), 300, 9000);
+          const pan = mapRange(wi,0,Math.max(lineLen-1,1),-0.75,0.75);
+          const isLast = wi === line.length-1;
+          let rhymeEcho = false;
+          if(isLast){
+            const key = rhymeKey(tok.letters);
+            for(let back=1; back<=3; back++){
+              if(endWordKeys[endWordKeys.length-back] === key){ rhymeEcho = true; break; }
+            }
+            endWordKeys.push(key);
+          }
+
+          let start, duration;
+          if(mode === "spectrum"){
+            start = lineStart;
+            duration = lineDuration;
+          } else {
+            duration = baseDur * (0.8 + 0.4*rng());
+            start = cursor;
+            cursor += duration + gapFor(tok.punct)*baseDur;
+          }
+
+          events.push({
+            word: tok.core, start, duration, freq,
+            waveform: WAVEFORMS[hue % 4],
+            filterHz,
+            gain: mapRange(clamp(tok.letters.length,1,12),1,12,0.20,0.12),
+            pan,
+            accent: tok.isCapitalized || tok.punct.includes('!'),
+            pitchBend: tok.punct.includes('?'),
+            rhymeEcho,
+            hue
+          });
+        });
+
+        if(mode === "spectrum"){
+          cursor = lineStart + lineDuration + baseDur*0.6;
+        } else {
+          cursor += baseDur * 0.7; // line-break pause
+        }
+      });
+    } else {
+      // granular: flatten, shuffle, overlap
+      const flat = [];
+      lines.forEach((line, li)=>{
+        const lineNorm = numLines>1 ? li/(numLines-1) : 0.5;
+        line.forEach(tok => flat.push({ tok, lineNorm }));
+      });
+      const shuffled = (function(arr){
+        const a = arr.slice();
+        for(let i=a.length-1;i>0;i--){
+          const j = Math.floor(rng()*(i+1));
+          [a[i],a[j]] = [a[j],a[i]];
+        }
+        return a;
+      })(flat);
+
+      const density = params.density; // 0..1, higher = more overlap
+      const grainDur = baseDur * 0.6;
+      const spacing = grainDur * mapRange(density,0,1,0.9,0.25);
+      let cursor = 0;
+      shuffled.forEach(({tok, lineNorm})=>{
+        const vr = vowelRatio(tok.letters);
+        const hue = hueBucketOf(tok.letters);
+        const semi = pitchSemitone(tok.letters, lineNorm, params, rng);
+        const freq = freqFromSemi(semi);
+        const filterHz = clamp(mapRange(vr,0,1,500,5200) * (0.4+params.brightness), 300, 9000);
+        const start = cursor + rng()*grainDur*0.4;
+        const duration = grainDur * (0.7 + 0.6*rng());
+        events.push({
+          word: tok.core, start, duration, freq,
+          waveform: WAVEFORMS[hue % 4],
+          filterHz,
+          gain: mapRange(clamp(tok.letters.length,1,12),1,12,0.16,0.10),
+          pan: rng()*2-1,
+          accent: tok.isCapitalized,
+          pitchBend: false,
+          rhymeEcho: false,
+          hue
+        });
+        cursor += spacing;
+      });
+    }
+
+    return events;
+  }
+
+  // ---------- audio ----------
+  let audioCtx = null;
+  let activeSources = [];
+  let rafId = null;
+  let noiseBuffer = null;
+  let mediaRecorder = null;
+  let recordedChunks = [];
+  let recorderDestNode = null;
+
+  function getCtx(){
+    if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    return audioCtx;
+  }
+  function getNoiseBuffer(ctx){
+    if(noiseBuffer) return noiseBuffer;
+    noiseBuffer = ctx.createBuffer(1, Math.floor(ctx.sampleRate*0.08), ctx.sampleRate);
+    const d = noiseBuffer.getChannelData(0);
+    for(let i=0;i<d.length;i++) d[i] = Math.random()*2-1;
+    return noiseBuffer;
+  }
+
+  function scheduleEvent(ctx, master, ev, t0){
+    const t = t0 + ev.start;
+    const atk = Math.min(0.02, ev.duration*0.3);
+    const rel = Math.max(0.03, ev.duration*0.4);
+
+    const osc = ctx.createOscillator();
+    osc.type = ev.waveform;
+    osc.frequency.setValueAtTime(ev.freq, t);
+    if(ev.pitchBend){
+      osc.frequency.linearRampToValueAtTime(ev.freq*Math.pow(2,2/12), t+ev.duration+rel);
+    }
+
+    const filter = ctx.createBiquadFilter();
+    filter.type = "lowpass";
+    filter.frequency.setValueAtTime(ev.filterHz, t);
+    filter.Q.value = 0.6;
+
+    const gainNode = ctx.createGain();
+    const peak = ev.accent ? ev.gain*1.35 : ev.gain;
+    gainNode.gain.setValueAtTime(0, t);
+    gainNode.gain.linearRampToValueAtTime(peak, t+atk);
+    gainNode.gain.linearRampToValueAtTime(0.0001, t+ev.duration+rel);
+
+    const panner = ctx.createStereoPanner();
+    panner.pan.setValueAtTime(clamp(ev.pan,-1,1), t);
+
+    osc.connect(filter).connect(gainNode).connect(panner);
+
+    if(ev.rhymeEcho){
+      const delay = ctx.createDelay(1.0);
+      delay.delayTime.value = 0.22;
+      const fb = ctx.createGain(); fb.gain.value = 0.35;
+      const wet = ctx.createGain(); wet.gain.value = 0.55;
+      panner.connect(delay);
+      delay.connect(fb); fb.connect(delay);
+      delay.connect(wet); wet.connect(master);
+    }
+    panner.connect(master);
+
+    osc.start(t);
+    osc.stop(t + ev.duration + rel + 0.05);
+    activeSources.push(osc);
+
+    if(ev.accent){
+      const src = ctx.createBufferSource();
+      src.buffer = getNoiseBuffer(ctx);
+      const hp = ctx.createBiquadFilter();
+      hp.type = "highpass";
+      hp.frequency.value = 2200;
+      const cg = ctx.createGain();
+      cg.gain.setValueAtTime(0.16, t);
+      cg.gain.exponentialRampToValueAtTime(0.001, t+0.05);
+      src.connect(hp).connect(cg).connect(panner);
+      src.start(t);
+      src.stop(t+0.06);
+      activeSources.push(src);
+    }
+  }
+
+  function stopAll(){
+    activeSources.forEach(s=>{
+      try{ s.stop(); }catch(e){}
+      try{ s.disconnect(); }catch(e){}
+    });
+    activeSources = [];
+    if(rafId){ cancelAnimationFrame(rafId); rafId = null; }
+  }
+
+  function readParams(){
+    return {
+      tempo: +document.getElementById('tempo').value,
+      register: +document.getElementById('register').value/100,
+      brightness: +document.getElementById('brightness').value/100,
+      density: +document.getElementById('density').value/100,
+      mode: document.getElementById('mode').value,
+      seed: +document.getElementById('seed').value || 1
+    };
+  }
+
+  function totalDurationOf(events){
+    let max = 0;
+    events.forEach(ev=>{ max = Math.max(max, ev.start+ev.duration+0.4); });
+    return max;
+  }
+
+  // ---------- visualization ----------
+  const canvas = document.getElementById('viz');
+  const vctx = canvas.getContext('2d');
+  function fitCanvasPixels(){
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = Math.max(400, Math.round(rect.width));
+    canvas.height = Math.max(180, Math.round(rect.height));
+  }
+  function freqToY(freq, h){
+    const semi = 12*Math.log2(freq/220);
+    const norm = clamp(mapRange(semi,-24,26,1,0),0,1);
+    return norm*(h-16)+8;
+  }
+  function drawStatic(events, totalDur){
+    fitCanvasPixels();
+    const w = canvas.width, h = canvas.height;
+    vctx.fillStyle = "#0e1016";
+    vctx.fillRect(0,0,w,h);
+    events.forEach(ev=>{
+      const x = (ev.start/totalDur)*w;
+      const bw = Math.max(2,(ev.duration/totalDur)*w);
+      const y = freqToY(ev.freq, h);
+      vctx.fillStyle = PALETTE_HEX[ev.hue];
+      vctx.globalAlpha = 0.55 + 0.45*(ev.gain/0.22);
+      vctx.fillRect(x, y-3, bw, 6);
+    });
+    vctx.globalAlpha = 1;
+  }
+  function drawPlayhead(frac){
+    const w = canvas.width, h = canvas.height;
+    vctx.fillStyle = "rgba(255,255,255,0.9)";
+    vctx.fillRect(clamp(frac,0,1)*w-1, 0, 2, h);
+  }
+
+  let lastEvents = [];
+  let lastTotalDur = 1;
+
+  function synthAndSchedule(){
+    const text = document.getElementById('poemInput').value;
+    const lines = tokenizePoem(text);
+    const statsEl = document.getElementById('stats');
+    if(lines.length === 0){
+      statsEl.textContent = "write or load a poem first";
+      return null;
+    }
+    const params = readParams();
+    const rng = mulberry32(params.seed * 2654435761 >>> 0);
+    const events = buildEventList(lines, params.mode, rng, params);
+    const totalDur = totalDurationOf(events);
+    lastEvents = events;
+    lastTotalDur = totalDur;
+    drawStatic(events, totalDur);
+    const wordCount = events.length;
+    statsEl.textContent = `${wordCount} words · mode: ${params.mode} · ~${totalDur.toFixed(1)}s · seed ${params.seed}`;
+    return { events, totalDur };
+  }
+
+  function playFromScratch(){
+    stopAll();
+    const built = synthAndSchedule();
+    if(!built) return null;
+    const ctx = getCtx();
+    if(ctx.state === "suspended") ctx.resume();
+    const master = ctx.createGain();
+    master.gain.value = 0.9;
+    master.connect(ctx.destination);
+    if(recorderDestNode) master.connect(recorderDestNode);
+    const t0 = ctx.currentTime + 0.12;
+    built.events.forEach(ev => scheduleEvent(ctx, master, ev, t0));
+
+    const start = performance.now();
+    function loop(){
+      const elapsed = (performance.now()-start)/1000 - 0.12;
+      drawStatic(lastEvents, lastTotalDur);
+      drawPlayhead(elapsed/lastTotalDur);
+      if(elapsed < lastTotalDur){
+        rafId = requestAnimationFrame(loop);
+      } else {
+        rafId = null;
+      }
+    }
+    rafId = requestAnimationFrame(loop);
+    return built;
+  }
+
+  document.getElementById('playBtn').addEventListener('click', ()=>{ playFromScratch(); });
+  document.getElementById('stopBtn').addEventListener('click', ()=>{
+    stopAll();
+    drawStatic(lastEvents, lastTotalDur);
+  });
+
+  // redraw static viz whenever params change (without playing)
+  ["mode","tempo","register","brightness","density","seed"].forEach(id=>{
+    document.getElementById(id).addEventListener('change', synthAndSchedule);
+  });
+  document.getElementById('poemInput').addEventListener('change', synthAndSchedule);
+
+  // ---------- recording ----------
+  const recordBtn = document.getElementById('recordBtn');
+  const downloadLink = document.getElementById('downloadLink');
+  let isRecording = false;
+
+  if(typeof MediaRecorder === "undefined"){
+    recordBtn.disabled = true;
+    document.getElementById('audioHint').textContent = "Recording isn't supported in this browser, but playback works.";
+  }
+
+  recordBtn.addEventListener('click', ()=>{
+    if(!isRecording){
+      const ctx = getCtx();
+      recorderDestNode = ctx.createMediaStreamDestination();
+      recordedChunks = [];
+      try{
+        mediaRecorder = new MediaRecorder(recorderDestNode.stream);
+      }catch(e){
+        document.getElementById('audioHint').textContent = "Recording failed to start in this browser.";
+        return;
+      }
+      mediaRecorder.ondataavailable = e=>{ if(e.data.size>0) recordedChunks.push(e.data); };
+      mediaRecorder.onstop = ()=>{
+        const blob = new Blob(recordedChunks, {type: mediaRecorder.mimeType || "audio/webm"});
+        const url = URL.createObjectURL(blob);
+        downloadLink.href = url;
+        downloadLink.hidden = false;
+      };
+      mediaRecorder.start();
+      isRecording = true;
+      recordBtn.textContent = "■ Stop & save";
+      playFromScratch();
+    } else {
+      isRecording = false;
+      recordBtn.textContent = "● Record";
+      stopAll();
+      if(mediaRecorder && mediaRecorder.state !== "inactive") mediaRecorder.stop();
+    }
+  });
+
+  // initial render
+  synthAndSchedule();
+})();
+</script>
+</body>
+</html>
