@@ -1,0 +1,969 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MetaSynth Web — Image Sound Synthesizer</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500;600&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0b0d10; --panel:#14171c; --panel2:#1b1f26; --border:#2a2f38;
+  --text:#e8e9eb; --dim:#8b93a1; --accent:#4ee3c0; --accent2:#ff5da2;
+  --warn:#ffb347; --mono:'DM Mono',monospace; --sans:'DM Sans',sans-serif;
+}
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:var(--sans);}
+body{font-size:14px;line-height:1.45}
+.app{max-width:1180px;margin:0 auto;padding:20px 20px 60px}
+.hdr{display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:16px}
+.hdr h1{font-family:var(--mono);font-size:1.1rem;letter-spacing:.04em;margin:0;font-weight:600}
+.hdr h1 span{color:var(--accent)}
+.hdr .sub{color:var(--dim);font-size:.78rem}
+.tabs{display:flex;gap:2px;background:var(--panel2);border:1px solid var(--border);border-radius:8px;padding:3px;margin-bottom:16px;width:fit-content}
+.tab{font-family:var(--mono);font-size:.68rem;letter-spacing:.08em;text-transform:uppercase;padding:8px 16px;border-radius:6px;background:none;border:none;color:var(--dim);cursor:pointer;transition:all .15s}
+.tab:hover{color:var(--text)}
+.tab.active{background:var(--accent);color:#04211c;font-weight:600}
+.room{display:none}
+.room.active{display:block}
+.grid2{display:grid;grid-template-columns:220px 1fr;gap:16px}
+@media (max-width:820px){.grid2{grid-template-columns:1fr}}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:14px}
+.card + .card{margin-top:14px}
+.card h2{font-family:var(--mono);font-size:.66rem;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);margin:0 0 10px;padding-bottom:8px;border-bottom:1px solid var(--border)}
+.tools{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-bottom:10px}
+.tbtn{font-family:var(--mono);font-size:.68rem;padding:8px 4px;background:var(--panel2);border:1px solid var(--border);border-radius:6px;color:var(--dim);cursor:pointer;text-align:center;transition:all .12s}
+.tbtn:hover{color:var(--text);border-color:#3a4150}
+.tbtn.active{background:var(--accent);color:#04211c;border-color:var(--accent);font-weight:600}
+.field{margin-bottom:10px}
+.field label{display:flex;justify-content:space-between;font-family:var(--mono);font-size:.6rem;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);margin-bottom:5px}
+.field label b{color:var(--text);font-weight:500}
+input[type=range]{width:100%;accent-color:var(--accent)}
+input[type=number]{width:100%;background:var(--panel2);border:1px solid var(--border);color:var(--text);padding:6px 8px;border-radius:5px;font-family:var(--mono);font-size:.8rem}
+input[type=color]{width:100%;height:34px;border:1px solid var(--border);border-radius:6px;background:var(--panel2);padding:2px;cursor:pointer}
+select{width:100%;background:var(--panel2);border:1px solid var(--border);color:var(--text);padding:6px 8px;border-radius:5px;font-family:var(--mono);font-size:.75rem}
+.swatches{display:flex;gap:5px;margin-top:6px}
+.swatch{width:22px;height:22px;border-radius:5px;border:1px solid var(--border);cursor:pointer}
+.row{display:flex;gap:6px}
+.row > *{flex:1}
+.btn{font-family:var(--mono);font-size:.68rem;letter-spacing:.05em;padding:8px 10px;background:var(--panel2);border:1px solid var(--border);border-radius:6px;color:var(--text);cursor:pointer;text-transform:uppercase;transition:all .12s}
+.btn:hover{border-color:#3a4150;background:#20242c}
+.btn.primary{background:var(--accent);color:#04211c;border-color:var(--accent);font-weight:600}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn.warn{background:var(--accent2);color:#2b0416;border-color:var(--accent2);font-weight:600}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.chk{display:flex;align-items:center;gap:7px;font-family:var(--mono);font-size:.66rem;color:var(--dim);letter-spacing:.04em;text-transform:uppercase}
+.canvas-wrap{position:relative;background:#000;border:1px solid var(--border);border-radius:8px;overflow:hidden}
+.canvas-flex{display:flex}
+.freq-axis{width:44px;flex-shrink:0;position:relative;border-right:1px solid var(--border);background:var(--panel)}
+.freq-axis .tick{position:absolute;right:5px;transform:translateY(-50%);font-family:var(--mono);font-size:.56rem;color:var(--dim)}
+.grid-area{position:relative;flex:1;min-width:0}
+#gridCanvas{width:100%;height:360px;display:block;image-rendering:pixelated;cursor:crosshair;touch-action:none}
+#overlayCanvas{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.time-axis{height:20px;position:relative;border-top:1px solid var(--border);background:var(--panel);margin-left:44px}
+.time-axis .tick{position:absolute;top:3px;transform:translateX(-50%);font-family:var(--mono);font-size:.56rem;color:var(--dim)}
+.progress-wrap{height:6px;background:var(--panel2);border-radius:4px;overflow:hidden;margin-top:8px;display:none}
+.progress-wrap.active{display:block}
+.progress-bar{height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width .1s linear}
+.waveform{width:100%;height:80px;display:block;background:var(--panel2);border:1px solid var(--border);border-radius:6px;margin-top:10px}
+.transport{display:flex;align-items:center;gap:8px;margin-top:10px;flex-wrap:wrap}
+.help{color:var(--dim);font-size:.74rem;line-height:1.7}
+.help strong{color:var(--text)}
+.legend{display:flex;gap:14px;flex-wrap:wrap;margin-top:8px;font-family:var(--mono);font-size:.62rem;color:var(--dim)}
+.legend span{display:inline-flex;align-items:center;gap:5px}
+.dot{width:9px;height:9px;border-radius:2px;display:inline-block}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+@media (max-width:900px){.grid3{grid-template-columns:1fr}}
+.filebtn{position:relative;overflow:hidden}
+.filebtn input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer}
+footer{margin-top:22px;color:var(--dim);font-size:.7rem;text-align:center}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="hdr">
+    <h1>META<span>SYNTH</span> WEB</h1>
+    <div class="sub">paint a spectrogram → hear it. image ↔ sound synthesizer in the browser.</div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" data-room="synth">Image Synth</button>
+    <button class="tab" data-room="fx">Effects &amp; Export</button>
+    <button class="tab" data-room="help">How it works</button>
+  </div>
+
+  <!-- IMAGE SYNTH ROOM -->
+  <div class="room active" id="room-synth">
+    <div class="grid2">
+      <div>
+        <div class="card">
+          <h2>Tools</h2>
+          <div class="tools" id="toolButtons">
+            <button class="tbtn active" data-tool="pencil">Pencil</button>
+            <button class="tbtn" data-tool="line">Line</button>
+            <button class="tbtn" data-tool="rect">Rect</button>
+            <button class="tbtn" data-tool="ellipse">Ellipse</button>
+            <button class="tbtn" data-tool="spray">Spray</button>
+            <button class="tbtn" data-tool="eraser">Eraser</button>
+          </div>
+          <div class="field">
+            <label>Brush size <b id="brushSizeVal">3</b></label>
+            <input type="range" id="brushSize" min="1" max="20" value="3">
+          </div>
+          <div class="field">
+            <label>Spray density <b id="sprayDensityVal">40%</b></label>
+            <input type="range" id="sprayDensity" min="5" max="100" value="40">
+          </div>
+          <div class="chk"><input type="checkbox" id="additiveBlend"> Additive blend (build up loudness)</div>
+        </div>
+
+        <div class="card">
+          <h2>Color = Pan / Volume</h2>
+          <input type="color" id="colorPicker" value="#ffffff">
+          <div class="swatches">
+            <div class="swatch" style="background:#ff0000" data-c="#ff0000" title="Left"></div>
+            <div class="swatch" style="background:#00ff00" data-c="#00ff00" title="Right"></div>
+            <div class="swatch" style="background:#0000ff" data-c="#0000ff" title="Center"></div>
+            <div class="swatch" style="background:#ffffff" data-c="#ffffff" title="Loud, centered"></div>
+            <div class="swatch" style="background:#804000" data-c="#804000" title="Left, medium"></div>
+            <div class="swatch" style="background:#404040" data-c="#404040" title="Quiet, centered"></div>
+          </div>
+          <div class="field" style="margin-top:10px">
+            <label>Level <b id="levelVal">100%</b></label>
+            <input type="range" id="levelSlider" min="1" max="100" value="100">
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Canvas ops</h2>
+          <div class="row" style="margin-bottom:6px">
+            <button class="btn" id="btnClear">Clear</button>
+            <button class="btn" id="btnInvert">Invert</button>
+          </div>
+          <div class="row" style="margin-bottom:6px">
+            <button class="btn" id="btnMirrorH">Mirror ↔</button>
+            <button class="btn" id="btnMirrorV">Mirror ↕</button>
+          </div>
+          <div class="row" style="margin-bottom:6px">
+            <button class="btn" id="btnBlur">Blur</button>
+            <button class="btn" id="btnNoise">Add Noise</button>
+          </div>
+          <div class="btn filebtn" style="text-align:center;margin-bottom:6px">
+            Load Image → Sound
+            <input type="file" id="imgLoader" accept="image/*">
+          </div>
+          <div class="row">
+            <button class="btn" id="btnSavePNG">Export PNG</button>
+            <button class="btn" id="btnSaveProject">Save</button>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="card">
+          <h2>Spectrogram Canvas — x = time, y = pitch (log Hz)</h2>
+          <div class="canvas-wrap">
+            <div class="canvas-flex">
+              <div class="freq-axis" id="freqAxis"></div>
+              <div class="grid-area">
+                <canvas id="gridCanvas" width="480" height="160"></canvas>
+                <canvas id="overlayCanvas" width="480" height="160"></canvas>
+              </div>
+            </div>
+            <div class="time-axis" id="timeAxis"></div>
+          </div>
+          <div class="legend">
+            <span><i class="dot" style="background:#ff0000"></i>red = left channel</span>
+            <span><i class="dot" style="background:#00ff00"></i>green = right channel</span>
+            <span><i class="dot" style="background:#0000ff"></i>blue = both / center</span>
+            <span><i class="dot" style="background:#fff"></i>brightness = volume</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="grid3">
+            <div class="field"><label>Duration (s) <b id="durVal">4.0</b></label><input type="range" id="duration" min="0.5" max="20" step="0.1" value="4"></div>
+            <div class="field"><label>Freq min (Hz) <b id="fMinVal">40</b></label><input type="range" id="freqMin" min="20" max="2000" value="40"></div>
+            <div class="field"><label>Freq max (Hz) <b id="fMaxVal">8000</b></label><input type="range" id="freqMax" min="500" max="20000" value="8000"></div>
+          </div>
+          <div class="row" style="margin-top:6px">
+            <div class="field"><label>Columns (time res)</label><input type="number" id="colsInput" min="60" max="900" value="480"></div>
+            <div class="field"><label>Rows (pitch res)</label><input type="number" id="rowsInput" min="16" max="256" value="160"></div>
+            <div style="align-self:flex-end;margin-bottom:10px"><button class="btn" id="btnApplyRes">Apply resolution</button></div>
+          </div>
+          <button class="btn primary" id="btnRender" style="width:100%">Render Audio</button>
+          <div class="progress-wrap" id="progressWrap"><div class="progress-bar" id="progressBar"></div></div>
+          <canvas class="waveform" id="waveCanvas"></canvas>
+          <div class="transport">
+            <button class="btn primary" id="btnPlay" disabled>▶ Play</button>
+            <button class="btn" id="btnStop" disabled>■ Stop</button>
+            <label class="chk"><input type="checkbox" id="loopChk"> Loop</label>
+            <span class="sub" id="renderInfo" style="color:var(--dim);font-family:var(--mono);font-size:.68rem"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- EFFECTS ROOM -->
+  <div class="room" id="room-fx">
+    <div class="grid3">
+      <div class="card">
+        <h2>Filter</h2>
+        <div class="field"><label>Type</label>
+          <select id="filterType">
+            <option value="allpass">Off</option>
+            <option value="lowpass">Lowpass</option>
+            <option value="highpass">Highpass</option>
+            <option value="bandpass">Bandpass</option>
+          </select>
+        </div>
+        <div class="field"><label>Cutoff <b id="filterFreqVal">4000 Hz</b></label><input type="range" id="filterFreq" min="40" max="18000" value="4000"></div>
+        <div class="field"><label>Resonance (Q) <b id="filterQVal">1.0</b></label><input type="range" id="filterQ" min="1" max="200" value="10"></div>
+      </div>
+      <div class="card">
+        <h2>Delay</h2>
+        <div class="field"><label>Time <b id="delayTimeVal">0.25 s</b></label><input type="range" id="delayTime" min="1" max="100" value="25"></div>
+        <div class="field"><label>Feedback <b id="delayFeedbackVal">30%</b></label><input type="range" id="delayFeedback" min="0" max="95" value="30"></div>
+        <div class="field"><label>Mix <b id="delayMixVal">0%</b></label><input type="range" id="delayMix" min="0" max="100" value="0"></div>
+      </div>
+      <div class="card">
+        <h2>Reverb</h2>
+        <div class="field"><label>Decay <b id="reverbDecayVal">2.0</b></label><input type="range" id="reverbDecay" min="1" max="80" value="20"></div>
+        <div class="field"><label>Mix <b id="reverbMixVal">0%</b></label><input type="range" id="reverbMix" min="0" max="100" value="0"></div>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Master &amp; Export</h2>
+      <div class="field"><label>Master volume <b id="masterVal">80%</b></label><input type="range" id="masterVol" min="0" max="100" value="80"></div>
+      <div class="transport">
+        <button class="btn primary" id="btnPlayFx" disabled>▶ Play with FX</button>
+        <button class="btn" id="btnStopFx" disabled>■ Stop</button>
+        <button class="btn warn" id="btnExportWav" disabled>⬇ Export WAV</button>
+        <span class="sub" id="fxInfo" style="color:var(--dim);font-family:var(--mono);font-size:.68rem">Render audio in Image Synth first.</span>
+      </div>
+      <div class="progress-wrap" id="exportProgressWrap"><div class="progress-bar" id="exportProgressBar"></div></div>
+    </div>
+  </div>
+
+  <!-- HELP ROOM -->
+  <div class="room" id="room-help">
+    <div class="card help">
+      <h2>How this works</h2>
+      <p>This is a browser-based homage to <strong>MetaSynth</strong>'s Image Synth room. You paint directly on a
+      spectrogram: the <strong>horizontal axis is time</strong>, the <strong>vertical axis is pitch</strong> (log-scaled,
+      like the human ear), and <strong>pixel color encodes loudness and stereo position</strong>:</p>
+      <ul>
+        <li><strong>Red channel</strong> → volume in the <strong>left</strong> speaker at that pitch/time.</li>
+        <li><strong>Green channel</strong> → volume in the <strong>right</strong> speaker.</li>
+        <li><strong>Blue channel</strong> → volume added equally to <strong>both</strong> speakers (center).</li>
+        <li><strong>Brightness</strong> overall → how loud that partial is.</li>
+      </ul>
+      <p>When you hit <strong>Render Audio</strong>, every row of pixels becomes a sine-wave oscillator tuned to that
+      row's frequency. Its amplitude over time is read straight out of the pixels in that row (interpolated smoothly
+      between columns), then every oscillator is summed together — this is <strong>additive synthesis</strong>, the same
+      principle MetaSynth's inverse-FFT resynthesis is built on. Draw fine dots for clean tones, thick smears for noisy
+      textures, diagonal lines for pitch sweeps, or load any photo to hear what it "sounds" like.</p>
+      <p>The <strong>Effects &amp; Export</strong> room runs the rendered audio through a filter, delay, and reverb chain
+      you can preview live and then bake into a downloadable WAV file.</p>
+    </div>
+  </div>
+
+  <footer>Runs entirely client-side — nothing is uploaded anywhere.</footer>
+</div>
+
+<script>
+(() => {
+'use strict';
+
+// ---------- state ----------
+const state = {
+  tool: 'pencil',
+  brushSize: 3,
+  sprayDensity: 40,
+  additive: false,
+  color: '#ffffff',
+  level: 100,
+  cols: 480,
+  rows: 160,
+  freqMin: 40,
+  freqMax: 8000,
+  duration: 4.0,
+  renderedBuffer: null,   // dry AudioBuffer from synthesis
+  isDrawing: false,
+  dragSnapshot: null,
+  dragStart: null,
+  sprayTimer: null,
+};
+
+const NICE_FREQS = [20,30,40,50,75,100,150,200,300,400,500,750,1000,1500,2000,3000,4000,5000,7500,10000,15000,20000];
+
+const gridCanvas = document.getElementById('gridCanvas');
+const overlayCanvas = document.getElementById('overlayCanvas');
+const gctx = gridCanvas.getContext('2d', { willReadFrequently: true });
+const octx = overlayCanvas.getContext('2d');
+
+function initGrid(cols, rows) {
+  gridCanvas.width = cols;
+  gridCanvas.height = rows;
+  overlayCanvas.width = cols;
+  overlayCanvas.height = rows;
+  gctx.fillStyle = '#000';
+  gctx.fillRect(0, 0, cols, rows);
+  state.cols = cols;
+  state.rows = rows;
+  buildAxes();
+}
+initGrid(state.cols, state.rows);
+
+// ---------- axes ----------
+function freqAtRow(row, rows, fMin, fMax) {
+  // row 0 = top = fMax, row rows-1 = bottom = fMin (log scale)
+  const t = row / (rows - 1);
+  return fMax * Math.pow(fMin / fMax, t);
+}
+function rowAtFreq(freq, rows, fMin, fMax) {
+  const t = Math.log(freq / fMax) / Math.log(fMin / fMax);
+  return t * (rows - 1);
+}
+
+function buildAxes() {
+  const freqAxis = document.getElementById('freqAxis');
+  const timeAxis = document.getElementById('timeAxis');
+  freqAxis.innerHTML = '';
+  timeAxis.innerHTML = '';
+  const { rows, freqMin, freqMax, duration } = state;
+  NICE_FREQS.filter(f => f >= freqMin && f <= freqMax).forEach(f => {
+    const row = rowAtFreq(f, rows, freqMin, freqMax);
+    const pct = (row / (rows - 1)) * 100;
+    if (pct < -2 || pct > 102) return;
+    const el = document.createElement('div');
+    el.className = 'tick';
+    el.style.top = pct + '%';
+    el.textContent = f >= 1000 ? (f / 1000) + 'k' : f;
+    freqAxis.appendChild(el);
+  });
+  const step = duration <= 4 ? 0.5 : (duration <= 10 ? 1 : 2);
+  for (let t = 0; t <= duration + 1e-9; t += step) {
+    const pct = (t / duration) * 100;
+    const el = document.createElement('div');
+    el.className = 'tick';
+    el.style.left = pct + '%';
+    el.textContent = t.toFixed(step < 1 ? 1 : 0) + 's';
+    timeAxis.appendChild(el);
+  }
+}
+
+// ---------- color helpers ----------
+function hexToRgb(hex) {
+  const v = parseInt(hex.slice(1), 16);
+  return [(v >> 16) & 255, (v >> 8) & 255, v & 255];
+}
+function currentPaintColor() {
+  const [r, g, b] = hexToRgb(state.color);
+  const lvl = state.level / 100;
+  return [Math.round(r * lvl), Math.round(g * lvl), Math.round(b * lvl)];
+}
+
+// ---------- drawing primitives on the grid ----------
+function stampSquare(cx, cy, size, rgb, alpha) {
+  const half = Math.floor(size / 2);
+  gctx.globalCompositeOperation = state.additive ? 'lighter' : 'source-over';
+  gctx.globalAlpha = alpha == null ? 1 : alpha;
+  gctx.fillStyle = `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
+  gctx.fillRect(cx - half, cy - half, size, size);
+  gctx.globalAlpha = 1;
+  gctx.globalCompositeOperation = 'source-over';
+}
+function stampEraser(cx, cy, size) {
+  gctx.globalCompositeOperation = 'source-over';
+  const half = Math.floor(size / 2);
+  gctx.fillStyle = '#000';
+  gctx.fillRect(cx - half, cy - half, size, size);
+}
+function drawLineOfStamps(x0, y0, x1, y1, size, rgb) {
+  const dx = Math.abs(x1 - x0), dy = Math.abs(y1 - y0);
+  const sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
+  let err = dx - dy, x = x0, y = y0;
+  while (true) {
+    if (state.tool === 'eraser') stampEraser(x, y, size); else stampSquare(x, y, size, rgb);
+    if (x === x1 && y === y1) break;
+    const e2 = 2 * err;
+    if (e2 > -dy) { err -= dy; x += sx; }
+    if (e2 < dx) { err += dx; y += sy; }
+  }
+}
+
+// ---------- pointer input ----------
+function gridCoords(evt) {
+  const rect = gridCanvas.getBoundingClientRect();
+  const sx = gridCanvas.width / rect.width;
+  const sy = gridCanvas.height / rect.height;
+  let gx = Math.floor((evt.clientX - rect.left) * sx);
+  let gy = Math.floor((evt.clientY - rect.top) * sy);
+  gx = Math.max(0, Math.min(gridCanvas.width - 1, gx));
+  gy = Math.max(0, Math.min(gridCanvas.height - 1, gy));
+  return [gx, gy];
+}
+
+function clearOverlay() { octx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height); }
+
+gridCanvas.addEventListener('pointerdown', (e) => {
+  gridCanvas.setPointerCapture(e.pointerId);
+  state.isDrawing = true;
+  const [gx, gy] = gridCoords(e);
+  const rgb = currentPaintColor();
+  if (state.tool === 'pencil' || state.tool === 'eraser') {
+    if (state.tool === 'eraser') stampEraser(gx, gy, state.brushSize); else stampSquare(gx, gy, state.brushSize, rgb);
+    state.lastPt = [gx, gy];
+  } else if (state.tool === 'line' || state.tool === 'rect' || state.tool === 'ellipse') {
+    state.dragStart = [gx, gy];
+    state.dragSnapshot = gctx.getImageData(0, 0, gridCanvas.width, gridCanvas.height);
+  } else if (state.tool === 'spray') {
+    doSpray(gx, gy, rgb);
+    state.sprayTimer = setInterval(() => doSpray(state.lastPt[0], state.lastPt[1], rgb), 45);
+    state.lastPt = [gx, gy];
+  }
+});
+gridCanvas.addEventListener('pointermove', (e) => {
+  if (!state.isDrawing) return;
+  const [gx, gy] = gridCoords(e);
+  const rgb = currentPaintColor();
+  if (state.tool === 'pencil' || state.tool === 'eraser') {
+    drawLineOfStamps(state.lastPt[0], state.lastPt[1], gx, gy, state.brushSize, rgb);
+    state.lastPt = [gx, gy];
+  } else if (state.tool === 'spray') {
+    state.lastPt = [gx, gy];
+  } else if (state.tool === 'line') {
+    gctx.putImageData(state.dragSnapshot, 0, 0);
+    drawLineOfStamps(state.dragStart[0], state.dragStart[1], gx, gy, state.brushSize, rgb);
+  } else if (state.tool === 'rect') {
+    gctx.putImageData(state.dragSnapshot, 0, 0);
+    const x0 = Math.min(state.dragStart[0], gx), x1 = Math.max(state.dragStart[0], gx);
+    const y0 = Math.min(state.dragStart[1], gy), y1 = Math.max(state.dragStart[1], gy);
+    gctx.fillStyle = `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
+    gctx.fillRect(x0, y0, x1 - x0 + 1, y1 - y0 + 1);
+  } else if (state.tool === 'ellipse') {
+    gctx.putImageData(state.dragSnapshot, 0, 0);
+    const cx = (state.dragStart[0] + gx) / 2, cy = (state.dragStart[1] + gy) / 2;
+    const rx = Math.abs(gx - state.dragStart[0]) / 2, ry = Math.abs(gy - state.dragStart[1]) / 2;
+    gctx.fillStyle = `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
+    gctx.beginPath();
+    gctx.ellipse(cx, cy, Math.max(rx, 0.5), Math.max(ry, 0.5), 0, 0, Math.PI * 2);
+    gctx.fill();
+  }
+});
+function endStroke() {
+  state.isDrawing = false;
+  state.dragSnapshot = null;
+  state.dragStart = null;
+  if (state.sprayTimer) { clearInterval(state.sprayTimer); state.sprayTimer = null; }
+}
+gridCanvas.addEventListener('pointerup', endStroke);
+gridCanvas.addEventListener('pointercancel', endStroke);
+gridCanvas.addEventListener('pointerleave', () => { if (state.tool === 'spray') endStroke(); });
+
+function doSpray(cx, cy, rgb) {
+  const radius = Math.max(2, state.brushSize);
+  const density = state.sprayDensity / 100;
+  const attempts = Math.round(radius * radius * 0.8);
+  gctx.globalCompositeOperation = state.additive ? 'lighter' : 'source-over';
+  gctx.fillStyle = `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
+  for (let i = 0; i < attempts; i++) {
+    if (Math.random() > density) continue;
+    const ang = Math.random() * Math.PI * 2, r = Math.random() * radius;
+    const x = Math.round(cx + Math.cos(ang) * r), y = Math.round(cy + Math.sin(ang) * r);
+    if (x < 0 || y < 0 || x >= gridCanvas.width || y >= gridCanvas.height) continue;
+    gctx.globalAlpha = 0.4 + Math.random() * 0.6;
+    gctx.fillRect(x, y, 1, 1);
+  }
+  gctx.globalAlpha = 1;
+  gctx.globalCompositeOperation = 'source-over';
+}
+
+// ---------- tool UI ----------
+document.getElementById('toolButtons').addEventListener('click', (e) => {
+  const btn = e.target.closest('.tbtn');
+  if (!btn) return;
+  document.querySelectorAll('.tbtn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  state.tool = btn.dataset.tool;
+});
+document.getElementById('brushSize').addEventListener('input', (e) => {
+  state.brushSize = +e.target.value;
+  document.getElementById('brushSizeVal').textContent = state.brushSize;
+});
+document.getElementById('sprayDensity').addEventListener('input', (e) => {
+  state.sprayDensity = +e.target.value;
+  document.getElementById('sprayDensityVal').textContent = state.sprayDensity + '%';
+});
+document.getElementById('additiveBlend').addEventListener('change', (e) => { state.additive = e.target.checked; });
+document.getElementById('colorPicker').addEventListener('input', (e) => { state.color = e.target.value; });
+document.querySelectorAll('.swatch').forEach(sw => sw.addEventListener('click', () => {
+  state.color = sw.dataset.c;
+  document.getElementById('colorPicker').value = sw.dataset.c;
+}));
+document.getElementById('levelSlider').addEventListener('input', (e) => {
+  state.level = +e.target.value;
+  document.getElementById('levelVal').textContent = state.level + '%';
+});
+
+// ---------- canvas ops ----------
+document.getElementById('btnClear').addEventListener('click', () => {
+  gctx.fillStyle = '#000'; gctx.fillRect(0, 0, gridCanvas.width, gridCanvas.height);
+});
+document.getElementById('btnInvert').addEventListener('click', () => {
+  const img = gctx.getImageData(0, 0, gridCanvas.width, gridCanvas.height);
+  for (let i = 0; i < img.data.length; i += 4) {
+    img.data[i] = 255 - img.data[i];
+    img.data[i+1] = 255 - img.data[i+1];
+    img.data[i+2] = 255 - img.data[i+2];
+  }
+  gctx.putImageData(img, 0, 0);
+});
+document.getElementById('btnMirrorH').addEventListener('click', () => {
+  const w = gridCanvas.width, h = gridCanvas.height;
+  const img = gctx.getImageData(0, 0, w, h);
+  const out = gctx.createImageData(w, h);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const s = (y*w + x)*4, d = (y*w + (w-1-x))*4;
+    out.data[d]=img.data[s]; out.data[d+1]=img.data[s+1]; out.data[d+2]=img.data[s+2]; out.data[d+3]=255;
+  }
+  gctx.putImageData(out, 0, 0);
+});
+document.getElementById('btnMirrorV').addEventListener('click', () => {
+  const w = gridCanvas.width, h = gridCanvas.height;
+  const img = gctx.getImageData(0, 0, w, h);
+  const out = gctx.createImageData(w, h);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const s = (y*w + x)*4, d = ((h-1-y)*w + x)*4;
+    out.data[d]=img.data[s]; out.data[d+1]=img.data[s+1]; out.data[d+2]=img.data[s+2]; out.data[d+3]=255;
+  }
+  gctx.putImageData(out, 0, 0);
+});
+document.getElementById('btnBlur').addEventListener('click', () => {
+  const w = gridCanvas.width, h = gridCanvas.height;
+  const img = gctx.getImageData(0, 0, w, h);
+  const src = img.data, out = new Uint8ClampedArray(src.length);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    let r=0,g=0,b=0,n=0;
+    for (let dy=-1; dy<=1; dy++) for (let dx=-1; dx<=1; dx++) {
+      const xx=x+dx, yy=y+dy;
+      if (xx<0||yy<0||xx>=w||yy>=h) continue;
+      const idx=(yy*w+xx)*4; r+=src[idx]; g+=src[idx+1]; b+=src[idx+2]; n++;
+    }
+    const o=(y*w+x)*4; out[o]=r/n; out[o+1]=g/n; out[o+2]=b/n; out[o+3]=255;
+  }
+  gctx.putImageData(new ImageData(out, w, h), 0, 0);
+});
+document.getElementById('btnNoise').addEventListener('click', () => {
+  const rgb = currentPaintColor();
+  const density = state.sprayDensity / 100;
+  gctx.globalCompositeOperation = 'lighter';
+  gctx.fillStyle = `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
+  const total = Math.round(gridCanvas.width * gridCanvas.height * density * 0.3);
+  for (let i = 0; i < total; i++) {
+    const x = Math.floor(Math.random()*gridCanvas.width), y = Math.floor(Math.random()*gridCanvas.height);
+    gctx.globalAlpha = 0.2 + Math.random()*0.6;
+    gctx.fillRect(x, y, 1, 1);
+  }
+  gctx.globalAlpha = 1; gctx.globalCompositeOperation = 'source-over';
+});
+document.getElementById('imgLoader').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    const img = new Image();
+    img.onload = () => {
+      gctx.fillStyle = '#000'; gctx.fillRect(0,0,gridCanvas.width,gridCanvas.height);
+      gctx.drawImage(img, 0, 0, gridCanvas.width, gridCanvas.height);
+    };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+});
+document.getElementById('btnSavePNG').addEventListener('click', () => {
+  const a = document.createElement('a');
+  a.download = 'metasynth-image.png';
+  a.href = gridCanvas.toDataURL('image/png');
+  a.click();
+});
+document.getElementById('btnSaveProject').addEventListener('click', () => {
+  const data = {
+    cols: state.cols, rows: state.rows, freqMin: state.freqMin, freqMax: state.freqMax,
+    duration: state.duration, image: gridCanvas.toDataURL('image/png'),
+  };
+  try {
+    localStorage.setItem('metasynth-project', JSON.stringify(data));
+    alert('Saved to this browser. It will reload automatically next time you open the app.');
+  } catch (err) { alert('Could not save: ' + err.message); }
+});
+function tryLoadSavedProject() {
+  try {
+    const raw = localStorage.getItem('metasynth-project');
+    if (!raw) return;
+    const data = JSON.parse(raw);
+    state.freqMin = data.freqMin; state.freqMax = data.freqMax; state.duration = data.duration;
+    document.getElementById('freqMin').value = data.freqMin;
+    document.getElementById('freqMax').value = data.freqMax;
+    document.getElementById('duration').value = data.duration;
+    document.getElementById('fMinVal').textContent = data.freqMin;
+    document.getElementById('fMaxVal').textContent = data.freqMax;
+    document.getElementById('durVal').textContent = (+data.duration).toFixed(1);
+    document.getElementById('colsInput').value = data.cols;
+    document.getElementById('rowsInput').value = data.rows;
+    initGrid(data.cols, data.rows);
+    const img = new Image();
+    img.onload = () => gctx.drawImage(img, 0, 0, gridCanvas.width, gridCanvas.height);
+    img.src = data.image;
+  } catch (e) { /* ignore corrupt save */ }
+}
+
+// ---------- settings sliders ----------
+document.getElementById('duration').addEventListener('input', (e) => {
+  state.duration = +e.target.value;
+  document.getElementById('durVal').textContent = state.duration.toFixed(1);
+  buildAxes();
+});
+document.getElementById('freqMin').addEventListener('input', (e) => {
+  state.freqMin = +e.target.value;
+  document.getElementById('fMinVal').textContent = state.freqMin;
+  buildAxes();
+});
+document.getElementById('freqMax').addEventListener('input', (e) => {
+  state.freqMax = +e.target.value;
+  document.getElementById('fMaxVal').textContent = state.freqMax;
+  buildAxes();
+});
+document.getElementById('btnApplyRes').addEventListener('click', () => {
+  const cols = Math.max(60, Math.min(900, +document.getElementById('colsInput').value || 480));
+  const rows = Math.max(16, Math.min(256, +document.getElementById('rowsInput').value || 160));
+  if (!confirm('Changing resolution clears the canvas. Continue?')) return;
+  initGrid(cols, rows);
+});
+
+// ---------- audio engine ----------
+let audioCtx = null;
+function ensureCtx() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return audioCtx;
+}
+
+const TABLE_SIZE = 4096, TABLE_MASK = TABLE_SIZE - 1;
+const sineTable = new Float32Array(TABLE_SIZE);
+for (let i = 0; i < TABLE_SIZE; i++) sineTable[i] = Math.sin(2 * Math.PI * i / TABLE_SIZE);
+
+async function synthesize() {
+  const ctx = ensureCtx();
+  const sampleRate = ctx.sampleRate;
+  const { cols, rows, freqMin, freqMax, duration } = state;
+  const totalSamples = Math.max(1, Math.round(duration * sampleRate));
+  const hop = totalSamples / cols;
+  const imgData = gctx.getImageData(0, 0, cols, rows).data;
+
+  const buffer = ctx.createBuffer(2, totalSamples, sampleRate);
+  const left = buffer.getChannelData(0);
+  const right = buffer.getChannelData(1);
+
+  const nyquistLimit = sampleRate * 0.45;
+  const ampL = new Float32Array(cols);
+  const ampR = new Float32Array(cols);
+
+  const progressBar = document.getElementById('progressBar');
+  const progressWrap = document.getElementById('progressWrap');
+  progressWrap.classList.add('active');
+
+  for (let r = 0; r < rows; r++) {
+    const freq = freqAtRow(r, rows, freqMin, freqMax);
+    if (freq > nyquistLimit || freq <= 0) continue;
+
+    for (let x = 0; x < cols; x++) {
+      const idx = (r * cols + x) * 4;
+      const R = imgData[idx], G = imgData[idx + 1], B = imgData[idx + 2];
+      let l = (R + B * 0.5) / 255;
+      let rr = (G + B * 0.5) / 255;
+      l = Math.min(1, l); rr = Math.min(1, rr);
+      ampL[x] = l * l;
+      ampR[x] = rr * rr;
+    }
+
+    const phaseInc = (freq / sampleRate) * TABLE_SIZE;
+    let phaseTable = 0;
+    for (let x = 0; x < cols; x++) {
+      const segStart = Math.round(x * hop);
+      const segEnd = Math.round((x + 1) * hop);
+      const segLen = segEnd - segStart;
+      if (segLen <= 0) continue;
+      const aL0 = ampL[x], aR0 = ampR[x];
+      const aL1 = x + 1 < cols ? ampL[x + 1] : ampL[x];
+      const aR1 = x + 1 < cols ? ampR[x + 1] : ampR[x];
+      if (aL0 === 0 && aL1 === 0 && aR0 === 0 && aR1 === 0) {
+        phaseTable = (phaseTable + phaseInc * segLen) % TABLE_SIZE;
+        continue;
+      }
+      const invLen = 1 / segLen;
+      for (let n = 0; n < segLen; n++) {
+        const t = n * invLen;
+        const s = sineTable[(phaseTable | 0) & TABLE_MASK];
+        phaseTable += phaseInc;
+        if (phaseTable >= TABLE_SIZE) phaseTable -= TABLE_SIZE;
+        const sampleIdx = segStart + n;
+        left[sampleIdx] += s * (aL0 + (aL1 - aL0) * t);
+        right[sampleIdx] += s * (aR0 + (aR1 - aR0) * t);
+      }
+    }
+    if (r % 4 === 0) {
+      progressBar.style.width = Math.round((r / rows) * 100) + '%';
+      await new Promise(res => setTimeout(res, 0));
+    }
+  }
+
+  let peak = 0;
+  for (let i = 0; i < totalSamples; i++) {
+    peak = Math.max(peak, Math.abs(left[i]), Math.abs(right[i]));
+  }
+  const norm = peak > 0 ? 0.9 / peak : 1;
+  for (let i = 0; i < totalSamples; i++) { left[i] *= norm; right[i] *= norm; }
+
+  progressBar.style.width = '100%';
+  setTimeout(() => progressWrap.classList.remove('active'), 300);
+  return buffer;
+}
+
+function drawWaveform(buffer) {
+  const canvas = document.getElementById('waveCanvas');
+  const dpr = window.devicePixelRatio || 1;
+  const w = canvas.clientWidth || 600, h = 80;
+  canvas.width = w * dpr; canvas.height = h * dpr;
+  const ctx2 = canvas.getContext('2d');
+  ctx2.scale(dpr, dpr);
+  ctx2.clearRect(0, 0, w, h);
+  const data = buffer.getChannelData(0);
+  const step = Math.ceil(data.length / w);
+  ctx2.strokeStyle = '#4ee3c0';
+  ctx2.beginPath();
+  for (let x = 0; x < w; x++) {
+    let min = 1, max = -1;
+    const start = x * step;
+    for (let i = 0; i < step; i++) {
+      const v = data[start + i] || 0;
+      if (v < min) min = v;
+      if (v > max) max = v;
+    }
+    const y1 = (1 - (max + 1) / 2) * h, y2 = (1 - (min + 1) / 2) * h;
+    ctx2.moveTo(x, y1); ctx2.lineTo(x, y2);
+  }
+  ctx2.stroke();
+}
+
+document.getElementById('btnRender').addEventListener('click', async () => {
+  const btn = document.getElementById('btnRender');
+  btn.disabled = true; btn.textContent = 'Rendering...';
+  try {
+    const buf = await synthesize();
+    state.renderedBuffer = buf;
+    drawWaveform(buf);
+    document.getElementById('btnPlay').disabled = false;
+    document.getElementById('btnPlayFx').disabled = false;
+    document.getElementById('btnExportWav').disabled = false;
+    document.getElementById('renderInfo').textContent = `${buf.duration.toFixed(2)}s @ ${buf.sampleRate}Hz`;
+    document.getElementById('fxInfo').textContent = 'Ready to preview or export.';
+  } finally {
+    btn.disabled = false; btn.textContent = 'Render Audio';
+  }
+});
+
+// ---------- plain playback (no fx) ----------
+let plainSource = null;
+document.getElementById('btnPlay').addEventListener('click', () => {
+  const ctx = ensureCtx();
+  if (plainSource) { try { plainSource.stop(); } catch (e) {} }
+  plainSource = ctx.createBufferSource();
+  plainSource.buffer = state.renderedBuffer;
+  plainSource.loop = document.getElementById('loopChk').checked;
+  plainSource.connect(ctx.destination);
+  plainSource.start();
+  document.getElementById('btnStop').disabled = false;
+  plainSource.onended = () => { document.getElementById('btnStop').disabled = true; };
+});
+document.getElementById('btnStop').addEventListener('click', () => {
+  if (plainSource) { try { plainSource.stop(); } catch (e) {} }
+  document.getElementById('btnStop').disabled = true;
+});
+
+// ---------- FX chain ----------
+function fxParams() {
+  return {
+    filterType: document.getElementById('filterType').value,
+    filterFreq: +document.getElementById('filterFreq').value,
+    filterQ: +document.getElementById('filterQ').value / 10,
+    delayTime: +document.getElementById('delayTime').value / 100,
+    delayFeedback: +document.getElementById('delayFeedback').value / 100,
+    delayMix: +document.getElementById('delayMix').value / 100,
+    reverbDecay: +document.getElementById('reverbDecay').value / 10,
+    reverbMix: +document.getElementById('reverbMix').value / 100,
+    masterVol: +document.getElementById('masterVol').value / 100,
+  };
+}
+function createImpulse(ctx, decay) {
+  const duration = Math.min(4, 0.5 + decay);
+  const len = Math.floor(ctx.sampleRate * duration);
+  const impulse = ctx.createBuffer(2, len, ctx.sampleRate);
+  for (let ch = 0; ch < 2; ch++) {
+    const data = impulse.getChannelData(ch);
+    for (let i = 0; i < len; i++) {
+      data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, decay);
+    }
+  }
+  return impulse;
+}
+function buildFxChain(ctx, params) {
+  const filter = ctx.createBiquadFilter();
+  filter.type = params.filterType;
+  filter.frequency.value = params.filterFreq;
+  filter.Q.value = params.filterQ;
+
+  const delay = ctx.createDelay(2.0);
+  delay.delayTime.value = params.delayTime;
+  const feedback = ctx.createGain();
+  feedback.gain.value = params.delayFeedback;
+  delay.connect(feedback); feedback.connect(delay);
+  const delayDry = ctx.createGain(); delayDry.gain.value = 1;
+  const delayWet = ctx.createGain(); delayWet.gain.value = params.delayMix;
+  const bus1 = ctx.createGain();
+  filter.connect(delayDry); delayDry.connect(bus1);
+  filter.connect(delay); delay.connect(delayWet); delayWet.connect(bus1);
+
+  const convolver = ctx.createConvolver();
+  convolver.buffer = createImpulse(ctx, params.reverbDecay);
+  const reverbDry = ctx.createGain(); reverbDry.gain.value = 1;
+  const reverbWet = ctx.createGain(); reverbWet.gain.value = params.reverbMix;
+  const bus2 = ctx.createGain();
+  bus1.connect(reverbDry); reverbDry.connect(bus2);
+  bus1.connect(convolver); convolver.connect(reverbWet); reverbWet.connect(bus2);
+
+  const master = ctx.createGain();
+  master.gain.value = params.masterVol;
+  bus2.connect(master);
+
+  return { input: filter, output: master, nodes: { filter, delay, feedback, convolver } };
+}
+
+let liveChain = null, liveSource = null;
+function startFxPreview() {
+  const ctx = ensureCtx();
+  if (liveSource) { try { liveSource.stop(); } catch (e) {} }
+  const params = fxParams();
+  liveChain = buildFxChain(ctx, params);
+  liveChain.output.connect(ctx.destination);
+  liveSource = ctx.createBufferSource();
+  liveSource.buffer = state.renderedBuffer;
+  liveSource.loop = document.getElementById('loopChk').checked;
+  liveSource.connect(liveChain.input);
+  liveSource.start();
+  document.getElementById('btnStopFx').disabled = false;
+}
+document.getElementById('btnPlayFx').addEventListener('click', startFxPreview);
+document.getElementById('btnStopFx').addEventListener('click', () => {
+  if (liveSource) { try { liveSource.stop(); } catch (e) {} }
+  document.getElementById('btnStopFx').disabled = true;
+});
+
+// live-update fx params while playing
+['filterType','filterFreq','filterQ','delayTime','delayFeedback','delayMix','reverbMix','masterVol'].forEach(id => {
+  document.getElementById(id).addEventListener('input', () => {
+    if (!liveChain) return;
+    const p = fxParams();
+    liveChain.nodes.filter.type = p.filterType;
+    liveChain.nodes.filter.frequency.value = p.filterFreq;
+    liveChain.nodes.filter.Q.value = p.filterQ;
+    liveChain.nodes.delay.delayTime.value = p.delayTime;
+    liveChain.nodes.feedback.gain.value = p.delayFeedback;
+    liveChain.output.gain.value = p.masterVol;
+  });
+});
+
+// fx label updates
+document.getElementById('filterFreq').addEventListener('input', e => document.getElementById('filterFreqVal').textContent = e.target.value + ' Hz');
+document.getElementById('filterQ').addEventListener('input', e => document.getElementById('filterQVal').textContent = (+e.target.value/10).toFixed(1));
+document.getElementById('delayTime').addEventListener('input', e => document.getElementById('delayTimeVal').textContent = (+e.target.value/100).toFixed(2) + ' s');
+document.getElementById('delayFeedback').addEventListener('input', e => document.getElementById('delayFeedbackVal').textContent = e.target.value + '%');
+document.getElementById('delayMix').addEventListener('input', e => document.getElementById('delayMixVal').textContent = e.target.value + '%');
+document.getElementById('reverbDecay').addEventListener('input', e => document.getElementById('reverbDecayVal').textContent = (+e.target.value/10).toFixed(1));
+document.getElementById('reverbMix').addEventListener('input', e => document.getElementById('reverbMixVal').textContent = e.target.value + '%');
+document.getElementById('masterVol').addEventListener('input', e => document.getElementById('masterVal').textContent = e.target.value + '%');
+
+// ---------- export ----------
+function bufferToWav(buffer) {
+  const numCh = buffer.numberOfChannels;
+  const len = buffer.length;
+  const sampleRate = buffer.sampleRate;
+  const bytesPerSample = 2;
+  const blockAlign = numCh * bytesPerSample;
+  const dataSize = len * blockAlign;
+  const bufferOut = new ArrayBuffer(44 + dataSize);
+  const view = new DataView(bufferOut);
+  function writeStr(offset, str) { for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i)); }
+  writeStr(0, 'RIFF'); view.setUint32(4, 36 + dataSize, true); writeStr(8, 'WAVE');
+  writeStr(12, 'fmt '); view.setUint32(16, 16, true); view.setUint16(20, 1, true);
+  view.setUint16(22, numCh, true); view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * blockAlign, true); view.setUint16(32, blockAlign, true);
+  view.setUint16(34, 16, true); writeStr(36, 'data'); view.setUint32(40, dataSize, true);
+  const channels = []; for (let c = 0; c < numCh; c++) channels.push(buffer.getChannelData(c));
+  let offset = 44;
+  for (let i = 0; i < len; i++) {
+    for (let c = 0; c < numCh; c++) {
+      let s = Math.max(-1, Math.min(1, channels[c][i]));
+      s = s < 0 ? s * 0x8000 : s * 0x7fff;
+      view.setInt16(offset, s, true); offset += 2;
+    }
+  }
+  return new Blob([bufferOut], { type: 'audio/wav' });
+}
+
+document.getElementById('btnExportWav').addEventListener('click', async () => {
+  const btn = document.getElementById('btnExportWav');
+  btn.disabled = true;
+  document.getElementById('exportProgressWrap').classList.add('active');
+  document.getElementById('exportProgressBar').style.width = '30%';
+  try {
+    const src = state.renderedBuffer;
+    const params = fxParams();
+    const offlineCtx = new OfflineAudioContext(2, src.length, src.sampleRate);
+    const chain = buildFxChain(offlineCtx, params);
+    chain.output.connect(offlineCtx.destination);
+    const srcNode = offlineCtx.createBufferSource();
+    srcNode.buffer = src;
+    srcNode.connect(chain.input);
+    srcNode.start();
+    document.getElementById('exportProgressBar').style.width = '60%';
+    const rendered = await offlineCtx.startRendering();
+    document.getElementById('exportProgressBar').style.width = '90%';
+    const blob = bufferToWav(rendered);
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'metasynth-render.wav';
+    a.click();
+    document.getElementById('exportProgressBar').style.width = '100%';
+  } finally {
+    btn.disabled = false;
+    setTimeout(() => document.getElementById('exportProgressWrap').classList.remove('active'), 400);
+  }
+});
+
+// ---------- tabs ----------
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.room').forEach(r => r.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('room-' + tab.dataset.room).classList.add('active');
+  });
+});
+
+buildAxes();
+tryLoadSavedProject();
+})();
+</script>
+</body>
+</html>
