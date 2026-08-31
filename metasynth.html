@@ -136,6 +136,10 @@ footer{margin-top:22px;color:var(--dim);font-size:.7rem;text-align:center}
         <div class="card">
           <h2>Canvas ops</h2>
           <div class="row" style="margin-bottom:6px">
+            <button class="btn" id="btnUndo" disabled title="Ctrl/Cmd+Z">↶ Undo</button>
+            <button class="btn" id="btnRedo" disabled title="Ctrl/Cmd+Shift+Z">↷ Redo</button>
+          </div>
+          <div class="row" style="margin-bottom:6px">
             <button class="btn" id="btnClear">Clear</button>
             <button class="btn" id="btnInvert">Invert</button>
           </div>
@@ -305,6 +309,49 @@ const overlayCanvas = document.getElementById('overlayCanvas');
 const gctx = gridCanvas.getContext('2d', { willReadFrequently: true });
 const octx = overlayCanvas.getContext('2d');
 
+// ---------- undo / redo ----------
+const MAX_UNDO = 50;
+let undoStack = [];
+let redoStack = [];
+const btnUndo = document.getElementById('btnUndo');
+const btnRedo = document.getElementById('btnRedo');
+function updateUndoButtons() {
+  btnUndo.disabled = undoStack.length === 0;
+  btnRedo.disabled = redoStack.length === 0;
+}
+function pushUndo() {
+  undoStack.push(gctx.getImageData(0, 0, gridCanvas.width, gridCanvas.height));
+  if (undoStack.length > MAX_UNDO) undoStack.shift();
+  redoStack = [];
+  updateUndoButtons();
+}
+function resetUndoHistory() {
+  undoStack = [];
+  redoStack = [];
+  updateUndoButtons();
+}
+function doUndo() {
+  if (!undoStack.length) return;
+  redoStack.push(gctx.getImageData(0, 0, gridCanvas.width, gridCanvas.height));
+  gctx.putImageData(undoStack.pop(), 0, 0);
+  updateUndoButtons();
+}
+function doRedo() {
+  if (!redoStack.length) return;
+  undoStack.push(gctx.getImageData(0, 0, gridCanvas.width, gridCanvas.height));
+  gctx.putImageData(redoStack.pop(), 0, 0);
+  updateUndoButtons();
+}
+btnUndo.addEventListener('click', doUndo);
+btnRedo.addEventListener('click', doRedo);
+document.addEventListener('keydown', (e) => {
+  if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== 'z') return;
+  const tag = document.activeElement && document.activeElement.tagName;
+  if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
+  e.preventDefault();
+  if (e.shiftKey) doRedo(); else doUndo();
+});
+
 function initGrid(cols, rows) {
   gridCanvas.width = cols;
   gridCanvas.height = rows;
@@ -315,6 +362,7 @@ function initGrid(cols, rows) {
   state.cols = cols;
   state.rows = rows;
   buildAxes();
+  resetUndoHistory();
 }
 initGrid(state.cols, state.rows);
 
@@ -430,12 +478,15 @@ gridCanvas.addEventListener('pointerdown', (e) => {
   const [gx, gy] = gridCoords(e);
   const rgb = currentPaintColor();
   if (state.tool === 'pencil' || state.tool === 'eraser') {
+    pushUndo();
     if (state.tool === 'eraser') stampEraser(gx, gy, state.brushSize); else stampSquare(gx, gy, state.brushSize, rgb);
     state.lastPt = [gx, gy];
   } else if (state.tool === 'line' || state.tool === 'rect' || state.tool === 'ellipse') {
+    pushUndo();
     state.dragStart = [gx, gy];
-    state.dragSnapshot = gctx.getImageData(0, 0, gridCanvas.width, gridCanvas.height);
+    state.dragSnapshot = undoStack[undoStack.length - 1];
   } else if (state.tool === 'spray') {
+    pushUndo();
     doSpray(gx, gy, rgb);
     state.sprayTimer = setInterval(() => doSpray(state.lastPt[0], state.lastPt[1], rgb), 45);
     state.lastPt = [gx, gy];
@@ -526,9 +577,11 @@ document.getElementById('levelSlider').addEventListener('input', (e) => {
 
 // ---------- canvas ops ----------
 document.getElementById('btnClear').addEventListener('click', () => {
+  pushUndo();
   gctx.fillStyle = '#000'; gctx.fillRect(0, 0, gridCanvas.width, gridCanvas.height);
 });
 document.getElementById('btnInvert').addEventListener('click', () => {
+  pushUndo();
   const img = gctx.getImageData(0, 0, gridCanvas.width, gridCanvas.height);
   for (let i = 0; i < img.data.length; i += 4) {
     img.data[i] = 255 - img.data[i];
@@ -538,6 +591,7 @@ document.getElementById('btnInvert').addEventListener('click', () => {
   gctx.putImageData(img, 0, 0);
 });
 document.getElementById('btnMirrorH').addEventListener('click', () => {
+  pushUndo();
   const w = gridCanvas.width, h = gridCanvas.height;
   const img = gctx.getImageData(0, 0, w, h);
   const out = gctx.createImageData(w, h);
@@ -548,6 +602,7 @@ document.getElementById('btnMirrorH').addEventListener('click', () => {
   gctx.putImageData(out, 0, 0);
 });
 document.getElementById('btnMirrorV').addEventListener('click', () => {
+  pushUndo();
   const w = gridCanvas.width, h = gridCanvas.height;
   const img = gctx.getImageData(0, 0, w, h);
   const out = gctx.createImageData(w, h);
@@ -558,6 +613,7 @@ document.getElementById('btnMirrorV').addEventListener('click', () => {
   gctx.putImageData(out, 0, 0);
 });
 document.getElementById('btnBlur').addEventListener('click', () => {
+  pushUndo();
   const w = gridCanvas.width, h = gridCanvas.height;
   const img = gctx.getImageData(0, 0, w, h);
   const src = img.data, out = new Uint8ClampedArray(src.length);
@@ -573,6 +629,7 @@ document.getElementById('btnBlur').addEventListener('click', () => {
   gctx.putImageData(new ImageData(out, w, h), 0, 0);
 });
 document.getElementById('btnNoise').addEventListener('click', () => {
+  pushUndo();
   const rgb = currentPaintColor();
   const density = state.sprayDensity / 100;
   gctx.globalCompositeOperation = 'lighter';
@@ -592,6 +649,7 @@ document.getElementById('imgLoader').addEventListener('change', (e) => {
   reader.onload = (ev) => {
     const img = new Image();
     img.onload = () => {
+      pushUndo();
       gctx.fillStyle = '#000'; gctx.fillRect(0,0,gridCanvas.width,gridCanvas.height);
       gctx.drawImage(img, 0, 0, gridCanvas.width, gridCanvas.height);
     };
