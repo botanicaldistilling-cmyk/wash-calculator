@@ -129,13 +129,27 @@
     display:flex;
     flex-direction:column;
   }
-  canvas#viz{
-    width:100%;
-    height:260px;
+  #vizScroll{
+    position:relative;
+    overflow-x:auto;
+    overflow-y:hidden;
     background:#0e1016;
     border:1px solid var(--line);
     border-radius:8px;
+  }
+  canvas#viz{
     display:block;
+    height:260px;
+  }
+  #playhead{
+    position:absolute;
+    top:0;
+    bottom:0;
+    left:0;
+    width:2px;
+    background:rgba(255,255,255,0.9);
+    box-shadow:0 0 6px rgba(255,255,255,0.6);
+    pointer-events:none;
   }
   #stats{
     font-size:11px;
@@ -239,7 +253,10 @@
 
   <div class="panel" id="vizWrap">
     <h2>Output</h2>
-    <canvas id="viz" width="900" height="260"></canvas>
+    <div id="vizScroll">
+      <canvas id="viz" width="900" height="260"></canvas>
+      <div id="playhead"></div>
+    </div>
     <div id="stats">load or write a poem, then press Synthesize &amp; play</div>
   </div>
 </main>
@@ -448,6 +465,14 @@ and the whole city leans toward morning.`;
   }
 
   // ---------- audio ----------
+  // Events aren't all scheduled up front -- for a very long poem that would mean
+  // creating tens of thousands of oscillator/filter/gain nodes in one synchronous
+  // burst. Instead a look-ahead scheduler (per Chris Wilson's "A Tale of Two
+  // Clocks" pattern) wakes up on a timer and only creates the handful of nodes
+  // whose start time is imminent, so poem length has no practical ceiling.
+  const SCHEDULE_AHEAD_TIME = 0.5; // seconds of audio to keep queued
+  const SCHEDULER_INTERVAL_MS = 100;
+
   let audioCtx = null;
   let activeSources = [];
   let rafId = null;
@@ -455,6 +480,13 @@ and the whole city leans toward morning.`;
   let mediaRecorder = null;
   let recordedChunks = [];
   let recorderDestNode = null;
+
+  let schedulerTimer = null;
+  let eventQueue = [];
+  let nextEventIndex = 0;
+  let playCtx = null;
+  let playT0 = 0;
+  let masterGainNode = null;
 
   function getCtx(){
     if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -528,12 +560,30 @@ and the whole city leans toward morning.`;
   }
 
   function stopAll(){
+    if(schedulerTimer){ clearInterval(schedulerTimer); schedulerTimer = null; }
     activeSources.forEach(s=>{
       try{ s.stop(); }catch(e){}
       try{ s.disconnect(); }catch(e){}
     });
     activeSources = [];
+    eventQueue = [];
+    nextEventIndex = 0;
+    playCtx = null;
     if(rafId){ cancelAnimationFrame(rafId); rafId = null; }
+  }
+
+  function schedulerTick(){
+    if(!playCtx) return;
+    const now = playCtx.currentTime;
+    while(nextEventIndex < eventQueue.length &&
+          (eventQueue[nextEventIndex].start + playT0) < now + SCHEDULE_AHEAD_TIME){
+      scheduleEvent(playCtx, masterGainNode, eventQueue[nextEventIndex], playT0);
+      nextEventIndex++;
+    }
+    if(nextEventIndex >= eventQueue.length && schedulerTimer){
+      clearInterval(schedulerTimer);
+      schedulerTimer = null;
+    }
   }
 
   function readParams(){
@@ -554,12 +604,24 @@ and the whole city leans toward morning.`;
   }
 
   // ---------- visualization ----------
+  // The canvas is drawn once per synthesis (not per frame) at a width that scales
+  // with the poem's total duration, inside a horizontally-scrolling container --
+  // that's what lets a long poem stay legible instead of being squeezed into a
+  // fixed-width strip. Width is capped so canvas dimensions stay within what
+  // browsers reliably support; very long poems just get a denser, still-scrollable
+  // timeline rather than hitting a hard limit.
+  const CANVAS_HEIGHT = 260;
+  const BASE_PX_PER_SEC = 50;
+  const MAX_CANVAS_WIDTH = 8000;
+
   const canvas = document.getElementById('viz');
   const vctx = canvas.getContext('2d');
-  function fitCanvasPixels(){
-    const rect = canvas.getBoundingClientRect();
-    canvas.width = Math.max(400, Math.round(rect.width));
-    canvas.height = Math.max(180, Math.round(rect.height));
+  const vizScroll = document.getElementById('vizScroll');
+  const playheadEl = document.getElementById('playhead');
+
+  function canvasWidthFor(totalDur){
+    const containerW = vizScroll.clientWidth || 900;
+    return Math.round(clamp(totalDur*BASE_PX_PER_SEC, containerW, MAX_CANVAS_WIDTH));
   }
   function freqToY(freq, h){
     const semi = 12*Math.log2(freq/220);
@@ -567,8 +629,9 @@ and the whole city leans toward morning.`;
     return norm*(h-16)+8;
   }
   function drawStatic(events, totalDur){
-    fitCanvasPixels();
-    const w = canvas.width, h = canvas.height;
+    const w = canvasWidthFor(totalDur), h = CANVAS_HEIGHT;
+    canvas.width = w;
+    canvas.height = h;
     vctx.fillStyle = "#0e1016";
     vctx.fillRect(0,0,w,h);
     events.forEach(ev=>{
@@ -580,11 +643,7 @@ and the whole city leans toward morning.`;
       vctx.fillRect(x, y-3, bw, 6);
     });
     vctx.globalAlpha = 1;
-  }
-  function drawPlayhead(frac){
-    const w = canvas.width, h = canvas.height;
-    vctx.fillStyle = "rgba(255,255,255,0.9)";
-    vctx.fillRect(clamp(frac,0,1)*w-1, 0, 2, h);
+    playheadEl.style.transform = 'translateX(0px)';
   }
 
   let lastEvents = [];
@@ -606,8 +665,27 @@ and the whole city leans toward morning.`;
     lastTotalDur = totalDur;
     drawStatic(events, totalDur);
     const wordCount = events.length;
-    statsEl.textContent = `${wordCount} words · mode: ${params.mode} · ~${totalDur.toFixed(1)}s · seed ${params.seed}`;
+    const perfNote = wordCount > 3000 ? " · large poem, playback scheduled just-in-time" : "";
+    statsEl.textContent = `${wordCount} words · mode: ${params.mode} · ~${totalDur.toFixed(1)}s · seed ${params.seed}${perfNote}`;
     return { events, totalDur };
+  }
+
+  function startPlayheadLoop(){
+    function loop(){
+      if(!playCtx){ rafId = null; return; }
+      const elapsed = playCtx.currentTime - playT0;
+      const frac = clamp(elapsed/lastTotalDur, 0, 1);
+      const x = frac * canvas.width;
+      playheadEl.style.transform = `translateX(${x}px)`;
+      const target = x - vizScroll.clientWidth/2;
+      vizScroll.scrollLeft = clamp(target, 0, Math.max(0, canvas.width - vizScroll.clientWidth));
+      if(elapsed < lastTotalDur){
+        rafId = requestAnimationFrame(loop);
+      } else {
+        rafId = null;
+      }
+    }
+    rafId = requestAnimationFrame(loop);
   }
 
   function playFromScratch(){
@@ -620,21 +698,17 @@ and the whole city leans toward morning.`;
     master.gain.value = 0.9;
     master.connect(ctx.destination);
     if(recorderDestNode) master.connect(recorderDestNode);
-    const t0 = ctx.currentTime + 0.12;
-    built.events.forEach(ev => scheduleEvent(ctx, master, ev, t0));
 
-    const start = performance.now();
-    function loop(){
-      const elapsed = (performance.now()-start)/1000 - 0.12;
-      drawStatic(lastEvents, lastTotalDur);
-      drawPlayhead(elapsed/lastTotalDur);
-      if(elapsed < lastTotalDur){
-        rafId = requestAnimationFrame(loop);
-      } else {
-        rafId = null;
-      }
-    }
-    rafId = requestAnimationFrame(loop);
+    eventQueue = built.events.slice().sort((a,b)=>a.start-b.start);
+    nextEventIndex = 0;
+    playCtx = ctx;
+    masterGainNode = master;
+    playT0 = ctx.currentTime + 0.15;
+
+    schedulerTick();
+    schedulerTimer = setInterval(schedulerTick, SCHEDULER_INTERVAL_MS);
+
+    startPlayheadLoop();
     return built;
   }
 
